@@ -1,9 +1,10 @@
 """
 HellMusic V3 - Main Entry Point
-Modern startup system with enhanced logging
+Clean & Safe startup system (Pyrogram + PyTgCalls compatible)
 """
 
 import asyncio
+import signal
 
 from pyrogram import idle
 
@@ -18,83 +19,89 @@ from Music.version import __version__
 
 async def start_bot():
     """Main startup function for HellMusic V3"""
-    
-    # Get version info
+
     hmusic_version = __version__.get("Hell Music", "3.0")
     py_version = __version__.get("Python", "3.10+")
     pyro_version = __version__.get("Pyrogram", "2.0+")
     pycalls_version = __version__.get("PyTgCalls", "3.0+")
-    
+
     LOGS.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     LOGS.info("🚀 Starting HellMusic V3...")
     LOGS.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    
-    # Setup users and database
+
+    # Init core systems
     await user_data.setup()
     await db.connect()
-    
-    # Start clients
+
+    # Start bot client
     await hellbot.start()
-    
+
     LOGS.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     LOGS.info("✅ HellMusic V3 Started Successfully!")
     LOGS.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    
-    # Send startup message to logger
+
+    # Notify logger chat
     try:
-        startup_text = TEXTS.BOOTED.format(
-            Config.BOT_NAME if hasattr(Config, 'BOT_NAME') else hellbot.app.name,
+        text = TEXTS.BOOTED.format(
+            getattr(Config, "BOT_NAME", hellbot.app.name),
             hmusic_version,
             py_version,
             pyro_version,
             pycalls_version,
-            hellbot.app.mention,
+            hellbot.app.mention(style="md"),
         )
-        
-        if hasattr(Config, 'BOT_PIC') and Config.BOT_PIC:
+
+        if getattr(Config, "BOT_PIC", None):
             await hellbot.app.send_photo(
-                chat_id=int(Config.LOGGER_ID),
-                photo=Config.BOT_PIC,
-                caption=startup_text,
+                Config.LOGGER_ID,
+                Config.BOT_PIC,
+                caption=text,
             )
         else:
             await hellbot.app.send_message(
-                chat_id=int(Config.LOGGER_ID),
-                text=startup_text,
+                Config.LOGGER_ID,
+                text,
             )
     except Exception as e:
-        LOGS.warning(f"⚠️ Could not send startup message: {e}")
-    
+        LOGS.warning(f"⚠️ Logger notify failed: {e}")
+
     LOGS.info(f"🎵 HellMusic V3 [{hmusic_version}] is now online!")
     LOGS.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    
-    # Keep the bot running
+
+    # Hold process
     await idle()
-    
-    # Shutdown
+
+    # Shutdown sequence
     LOGS.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     LOGS.info("🛑 Shutting down HellMusic V3...")
     LOGS.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    
+
     try:
         await hellbot.app.send_message(
-            chat_id=Config.LOGGER_ID,
-            text=f"**#STOP**\n\n**🛑 HellMusic V3 [{hmusic_version}] is now offline!**",
+            Config.LOGGER_ID,
+            f"**#STOP**\n\n**🛑 HellMusic V3 [{hmusic_version}] is now offline!**",
         )
     except Exception:
         pass
-    
+
     await hellbot.stop()
-    
-    LOGS.info(f"👋 HellMusic V3 [{hmusic_version}] stopped!")
-    LOGS.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    await db.close()
+
+    LOGS.info(f"👋 HellMusic V3 [{hmusic_version}] stopped cleanly!")
+
+
+def main():
+    """Safe event-loop runner (NO asyncio.run)"""
+    loop = asyncio.get_event_loop()
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, loop.stop)
+
+    try:
+        loop.run_until_complete(start_bot())
+    finally:
+        loop.close()
 
 
 if __name__ == "__main__":
-    # Run the bot
-    try:
-        asyncio.run(start_bot())
-    except KeyboardInterrupt:
-        LOGS.info("⚠️ Bot stopped by user!")
-    except Exception as e:
-        LOGS.error(f"❌ Fatal error: {e}")
+    main()
