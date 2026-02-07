@@ -1,20 +1,16 @@
-"""
-HellMusic V3 - Version Information
-"""
-
-import sys
+import platform
 import time
 
-import pyrogram
-import pytgcalls
+from pyrogram import __version__ as pyro_version
+from pytgcalls.__version__ import __version__ as pytgcalls_version
 
-# Start time
-__start_time__ = time.time()
-
-# Version information
+# versions dictionary
 __version__ = {
-    "Hell Music": "3.0.0",
-    "Python": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
-    "Pyrogram": pyrogram.__version__,
-    "PyTgCalls": pytgcalls.__version__,
+    "Hell Music": "0.1.1",
+    "Python": platform.python_version(),
+    "Pyrogram": pyro_version,
+    "PyTgCalls": pytgcalls_version,
 }
+
+# store start time
+__start_time__ = time.time()
