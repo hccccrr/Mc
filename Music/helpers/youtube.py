@@ -1,5 +1,6 @@
 import json
 import urllib.parse
+from datetime import datetime
 
 import requests
 from pytube import YouTube
@@ -58,13 +59,24 @@ class Hell_YTS:
                 )
                 res["duration"] = video_data.get("lengthText", {}).get("simpleText", 0)
                 res["views"] = video_data.get("viewCountText", {}).get("simpleText", 0)
-                res["publish_time"] = (
-                    lambda d: d.strftime('%d{} of %B, %Y').format(
-                        'th' if 4 <= d.day <= 20 or 24 <= d.day <= 30 else ['st', 'nd', 'rd'][(d.day - 1) % 10 % 3]
-                    )
-                )(
-                    YouTube(("https://www.youtube.com/watch?v=" + video_data.get("videoId", None))).publish_date
-                )
+                
+                # Fix for publish_date
+                try:
+                    video_url = "https://www.youtube.com/watch?v=" + video_data.get("videoId", "")
+                    yt = YouTube(video_url)
+                    publish_date = yt.publish_date
+                    
+                    if publish_date:
+                        day = publish_date.day
+                        if 4 <= day <= 20 or 24 <= day <= 30:
+                            suffix = 'th'
+                        else:
+                            suffix = ['st', 'nd', 'rd'][(day - 1) % 10 % 3]
+                        res["publish_time"] = publish_date.strftime(f'%d{suffix} of %B, %Y')
+                    else:
+                        res["publish_time"] = "Unknown"
+                except Exception as e:
+                    res["publish_time"] = "Unknown"
 
                 res["url_suffix"] = (
                     video_data.get("navigationEndpoint", {})
