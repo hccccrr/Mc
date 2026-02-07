@@ -8,7 +8,6 @@ import asyncio
 from pyrogram import idle
 
 from config import Config
-from Music.core.calls import call_handler
 from Music.core.clients import hellbot
 from Music.core.database import db
 from Music.core.logger import LOGS
