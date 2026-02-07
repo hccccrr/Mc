@@ -1,215 +1,336 @@
+"""
+HellMusic V3 - Text Strings
+Modern text templates with enhanced formatting and emojis
+"""
+
+
 class TEXTS:
+    """Text templates for HellMusic V3"""
+    
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # Song & Video Information
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
     ABOUT_SONG = (
-        "**💬 Title:** __{0}__ \n\n"
-        "**📺 Channel:** __{1}__ \n"
-        "**🕰 Published:** __{2}__ \n"
-        "**🔖 Views:** __{3}__ \n"
-        "**⏳ Duration:** __{4}__ \n\n"
-        "**❆** {5}"
+        "╭─────────────────────╮\n"
+        "│  **🎵 Song Information**\n"
+        "╰─────────────────────╯\n\n"
+        "**📝 Title:** `{0}`\n"
+        "**📺 Channel:** `{1}`\n"
+        "**📅 Published:** `{2}`\n"
+        "**👁️ Views:** `{3}`\n"
+        "**⏱️ Duration:** `{4}`\n\n"
+        "**🔗 Powered By:** {5}"
     )
+    
     ABOUT_USER = (
-        "**✘ Top User Info:**\n\n"
-        "**💬 Name:** {0}\n"
-        "**💠 ID:** `{1}`\n"
-        "**⚜️ Level:** __{2}__\n"
-        "**🎶 Songs Played:** __{3}__\n"
-        "**〥 Joined Since:** __{4}__\n\n"
-        "**❆** {5}"
+        "╭─────────────────────╮\n"
+        "│  **👤 Top User Info**\n"
+        "╰─────────────────────╯\n\n"
+        "**👤 Name:** {0}\n"
+        "**🆔 User ID:** `{1}`\n"
+        "**⭐ Level:** `{2}`\n"
+        "**🎵 Songs Played:** `{3}`\n"
+        "**📅 Member Since:** `{4}`\n\n"
+        "**🔗 Powered By:** {5}"
     )
-    BOOTED = (
-        "#START\n\n"
-        "**{0} is alive!**\n\n"
-        "__» Hell-Music Version:__ `{1}`\n"
-        "__» Python Version:__ `{2}`\n"
-        "__» Pyrogram Version:__ `{3}`\n"
-        "__» PyTgCalls Version:__ `{4}`\n\n"
-        "**</>** {5}"
-    )
-    PING_REPLY = (
-        "**📌 Pinged Bot Server!**\n\n"
-        "**🏁 Speed:** __{0} ms__\n"
-        "**⏳ Uptime:** __{1}__\n"
-        "**🎶 VC Ping:** __{2} ms__"
-    )
-    PLAYING = (
-        "**❆** {0}\n\n"
-        "**♪ Song Name:** __{1}__\n"
-        "**♪ Duration:** __{2}__\n"
-        "**♪ Auxed By:** {3}"
-    )
-    PROFILE = (
-        "**{0}\nUser Profile**\n\n"
-        "**💬 Name:** {1}\n"
-        "**💠 ID:** `{2}`\n"
-        "**📝 User Type:** __{3}__\n"
-        "**⚜️ Level:** __{4}__\n"
-        "**🎶 Songs Played:** __{5}__\n"
-        "**〥 Joined Since:** __{6}__\n\n"
-        "**❆** {7}"
-    )
-    QUEUE = (
-        "**Added to Queue (#{0})** \n\n"
-        "**» Song Name:** __{1}__\n"
-        "**» Duration:** __{2}__\n"
-        "**» Queued By:** {3}"
-    )
+    
     SONG_CAPTION = (
-        "**⊸ Title:** [{0}]({1})\n\n"
-        "**⊸ Views:** {2}\n"
-        "**⊸ Duration:** {3}\n"
-        "**⊸ Requested By:** {4}\n\n"
-        "**❆** {5}"
+        "╭─────────────────────╮\n"
+        "│  **🎵 Download Info**\n"
+        "╰─────────────────────╯\n\n"
+        "**📝 Title:** [{0}]({1})\n"
+        "**👁️ Views:** `{2}`\n"
+        "**⏱️ Duration:** `{3}`\n"
+        "**👤 Requested By:** {4}\n\n"
+        "**🔗 Powered By:** {5}"
     )
-    SOURCE = (
-        "**Source 📦:**\n\n"
-        "**Note:** \n__» The source code is available on GitHub. You can find the link below.__\n"
-        "__» Every project available under The-HellBot are open-source and free to use and modify to your needs.__\n"
-        "__» Anyone pretending to be the developer of this bot and selling the code, is a scammer.__\n\n"
-        "__» Please consider giving a star to the repository if you liked the project.__\n"
-        "__» Feel free to contact us if you need any help regarding the source code.__\n\n"
-        "❤️🎶 {0}"
+    
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # Playback Status
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
+    PLAYING = (
+        "╭─────────────────────╮\n"
+        "│  **🎵 Now Playing**\n"
+        "╰─────────────────────╯\n\n"
+        "**🔗 Stream:** {0}\n\n"
+        "**📝 Song:** `{1}`\n"
+        "**⏱️ Duration:** `{2}`\n"
+        "**👤 Requested By:** {3}"
     )
+    
+    QUEUE = (
+        "╭─────────────────────╮\n"
+        "│  **📋 Added to Queue**\n"
+        "╰─────────────────────╯\n\n"
+        "**🔢 Position:** `#{0}`\n"
+        "**📝 Song:** `{1}`\n"
+        "**⏱️ Duration:** `{2}`\n"
+        "**👤 Queued By:** {3}"
+    )
+    
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # User Profile
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
+    PROFILE = (
+        "╭─────────────────────╮\n"
+        "│  {0}\n"
+        "│  **👤 User Profile**\n"
+        "╰─────────────────────╯\n\n"
+        "**👤 Name:** {1}\n"
+        "**🆔 User ID:** `{2}`\n"
+        "**📱 Type:** `{3}`\n"
+        "**⭐ Level:** `{4}`\n"
+        "**🎵 Songs Played:** `{5}`\n"
+        "**📅 Member Since:** `{6}`\n\n"
+        "**🔗 Powered By:** {7}"
+    )
+    
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # Statistics
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
     STATS = (
-        "**⤞ Server Stats:**\n"
-        "    __Total Users:__ `{0} users`\n"
-        "    __Total Chats:__ `{1} chats`\n"
-        "    __Total Gbans:__ `{2} users`\n"
-        "    __Blocked Users:__ `{3} users`\n"
-        "    __Songs Played:__ `{4} songs`\n"
-        "    __Active VC:__ `{5} vc`\n\n"
-        "**⤞ System Stats:**\n"
-        "    __Core:__ `{6} cores`\n"
-        "    __CPU Usage:__ `{7}`\n"
-        "    __Disk Usage:__ `{8}`\n"
-        "    __RAM Usage:__ `{9}`\n"
-        "    __Uptime:__ `{10}`\n\n"
-        "**</>** {11}"
+        "╭─────────────────────╮\n"
+        "│  **📊 Bot Statistics**\n"
+        "╰─────────────────────╯\n\n"
+        "**📊 Server Stats:**\n"
+        "├ **👥 Total Users:** `{0}`\n"
+        "├ **💬 Total Chats:** `{1}`\n"
+        "├ **🚫 Gbans:** `{2}`\n"
+        "├ **🔒 Blocked:** `{3}`\n"
+        "├ **🎵 Songs Played:** `{4}`\n"
+        "└ **🎙️ Active VC:** `{5}`\n\n"
+        "**💻 System Stats:**\n"
+        "├ **🖥️ CPU Cores:** `{6}`\n"
+        "├ **⚡ CPU Usage:** `{7}`\n"
+        "├ **💾 Disk Usage:** `{8}`\n"
+        "├ **🎯 RAM Usage:** `{9}`\n"
+        "└ **⏰ Uptime:** `{10}`\n\n"
+        "**🔗 Powered By:** {11}"
     )
+    
     SYSTEM = (
-        "**⤞ System Info:**\n\n"
-        "   __Core:__ `{0} cores`\n"
-        "   __CPU Usage:__ `{1}`\n"
-        "   __Disk Usage:__ `{2}`\n"
-        "   __RAM Usage:__ `{3}`\n"
-        "   __Uptime:__ `{4}`\n\n"
-        "**</>** {5}"
+        "╭─────────────────────╮\n"
+        "│  **💻 System Info**\n"
+        "╰─────────────────────╯\n\n"
+        "**🖥️ CPU Cores:** `{0}`\n"
+        "**⚡ CPU Usage:** `{1}`\n"
+        "**💾 Disk Usage:** `{2}`\n"
+        "**🎯 RAM Usage:** `{3}`\n"
+        "**⏰ Uptime:** `{4}`\n\n"
+        "**🔗 Powered By:** {5}"
     )
+    
+    PING_REPLY = (
+        "╭─────────────────────╮\n"
+        "│  **🏓 Pong!**\n"
+        "╰─────────────────────╯\n\n"
+        "**⚡ Speed:** `{0} ms`\n"
+        "**⏰ Uptime:** `{1}`\n"
+        "**🎙️ VC Ping:** `{2} ms`"
+    )
+    
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # Startup & Source
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
+    BOOTED = (
+        "╭─────────────────────╮\n"
+        "│  **#START**\n"
+        "│  **🎵 {0} is Alive!**\n"
+        "╰─────────────────────╯\n\n"
+        "**📦 Version Info:**\n"
+        "├ **🎵 HellMusic:** `{1}`\n"
+        "├ **🐍 Python:** `{2}`\n"
+        "├ **📡 Pyrogram:** `{3}`\n"
+        "└ **📞 PyTgCalls:** `{4}`\n\n"
+        "**🔗 Powered By:** {5}"
+    )
+    
+    SOURCE = (
+        "╭─────────────────────╮\n"
+        "│  **📦 Source Code**\n"
+        "╰─────────────────────╯\n\n"
+        "**📌 Note:**\n"
+        "• The source code is available on GitHub\n"
+        "• All projects under The-HellBot are open-source\n"
+        "• Free to use and modify to your needs\n"
+        "• Anyone selling this code is a scammer\n\n"
+        "**⭐ Support Us:**\n"
+        "• Star the repository if you like it\n"
+        "• Contact us for help with the code\n\n"
+        "**🔗 Powered By:** {0}"
+    )
+    
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # Help Texts
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
     HELP_ADMIN = (
-        "**Authorized Users Commands:**\n\n"
-        "**» /auth ; /unauth**\n"
-        "    __Authorize or unauthorize user to use admins command such as /skip, /pause, etc.__\n\n"
-        "**» /authlist**\n"
-        "    __List all authorized users.__\n\n"
-        "**» /authchat**\n"
-        "    __This enables all the users in the chat to use admins command such as /skip, /pause, etc.__\n\n"
-        "**» /mute ; /unmute**\n"
-        "    __Mute or unmute the ongoing track in the voice chat.__\n\n"
-        "**» /pause ; /resume**\n"
-        "    __Pause or resume the ongoing track in the voice chat.__\n\n"
-        "**» /stop ; /end**\n"
-        "    __Stop the ongoing track in the voice chat.__\n\n"
-        "**» /loop**\n"
-        "    __Loop the playing track in the voice chat. Use [/loop 0] to disable the loop.__\n\n"
-        "**» /skip**\n"
-        "    __Skip the playing track in the voice chat.__\n\n"
-        "**» /replay**\n"
-        "    __Replay from the beginning of the playing track in the voice chat.__\n\n"
-        "**» /seek**\n"
-        "    __Seek the playing track in the voice chat. Use [/seek 10] to seek forward and [/seek-10] to seek backwards.__\n\n"
-        "**» /clean**\n"
-        "    __Clear the queue when bot seems to be bugged.__\n\n"
+        "╭─────────────────────╮\n"
+        "│  **👑 Admin Commands**\n"
+        "╰─────────────────────╯\n\n"
+        "**🔐 Authorization:**\n"
+        "• `/auth` - Authorize user\n"
+        "• `/unauth` - Unauthorize user\n"
+        "• `/authlist` - List authorized users\n"
+        "• `/authchat` - Enable for all users\n\n"
+        "**🎵 Playback Control:**\n"
+        "• `/mute` - Mute the stream\n"
+        "• `/unmute` - Unmute the stream\n"
+        "• `/pause` - Pause playback\n"
+        "• `/resume` - Resume playback\n"
+        "• `/stop` `/end` - Stop playback\n"
+        "• `/skip` - Skip current track\n"
+        "• `/replay` - Replay from start\n\n"
+        "**⚙️ Advanced:**\n"
+        "• `/loop [0-10]` - Loop track (0 to disable)\n"
+        "• `/seek [seconds]` - Seek position\n"
+        "• `/clean` - Clear queue when bugged\n"
     )
+    
     HELP_USER = (
-        "**Normal Users Commands:**\n\n"
-        "**» /play ; /vplay**\n"
-        "    __Play replied audio/video file or youtube video or searched query on voice chat.__\n\n"
-        "**» /fplay ; /fvplay**\n"
-        "    __Force play replied audio/video file or youtube video or searched query on voice chat.__\n\n"
-        "**» /favs ; /myfavs ; /favorites**\n"
-        "    __Show your favorite songs list.__\n\n"
-        "**» /delfavs**\n"
-        "    __Delete your favorite songs from your list.__\n\n"
-        "**» /current ; /playing**\n"
-        "    __Show the current playing song.__\n\n"
-        "**» /queue ; /que ; /q**\n"
-        "    __Show the queued songs list.__\n\n"
-        "**» /song**\n"
-        "    __Download the searched song from youtube.__\n\n"
-        "**» /lyrics**\n"
-        "    __Get the lyrics of the searched song. Give artist name after ' - ' for accurate results. [/lyrics Without Me - Eminem]__\n\n"
-        "**» /profile ; /me**\n"
-        "    __Show your profile and stats.__\n\n"
+        "╭─────────────────────╮\n"
+        "│  **👥 User Commands**\n"
+        "╰─────────────────────╯\n\n"
+        "**🎵 Play Music:**\n"
+        "• `/play` - Play audio track\n"
+        "• `/vplay` - Play video track\n"
+        "• `/fplay` - Force play audio\n"
+        "• `/fvplay` - Force play video\n\n"
+        "**❤️ Favorites:**\n"
+        "• `/favs` `/myfavs` - Show favorites\n"
+        "• `/delfavs` - Delete favorites\n\n"
+        "**ℹ️ Information:**\n"
+        "• `/current` `/playing` - Now playing\n"
+        "• `/queue` `/q` - View queue\n"
+        "• `/song` - Download song\n"
+        "• `/lyrics` - Get lyrics\n"
+        "• `/profile` `/me` - Your profile\n"
     )
+    
     HELP_SUDO = (
-        "**Sudo Users Commands:**\n\n"
-        "**» /active**\n"
-        "    __Check active voice chats of the bot.__\n\n"
-        "**» /autoend**\n"
-        "    __Enable or disable autoend inactive voice chats.__\n\n"
-        "**» /block ; /unblock**\n"
-        "    __Block or unblock user from using the bot.__\n\n"
-        "**» /blocklist**\n"
-        "    __List all blocked users.__\n\n"
-        "**» /gban ; /ungban**\n"
-        "    __Globally ban or unban user from using the bot.__\n\n"
-        "**» /gbanlist**\n"
-        "    __List all globally banned users.__\n\n"
-        "**» /logs**\n"
-        "    __Get the logs of the bot.__\n\n"
-        "**» /restart**\n"
-        "    __Restart the bot globally.__\n\n"
-        "**» /sudolist**\n"
-        "    __List all sudo users.__\n\n"
-        "**» /stats**\n"
-        "    __Show full stats of the bot.__\n\n"
+        "╭─────────────────────╮\n"
+        "│  **⭐ Sudo Commands**\n"
+        "╰─────────────────────╯\n\n"
+        "**📊 Management:**\n"
+        "• `/active` - Active voice chats\n"
+        "• `/autoend` - Auto-end toggle\n"
+        "• `/stats` - Full statistics\n"
+        "• `/logs` - Get bot logs\n\n"
+        "**🚫 Moderation:**\n"
+        "• `/block` `/unblock` - Block user\n"
+        "• `/blocklist` - Blocked users\n"
+        "• `/gban` `/ungban` - Global ban\n"
+        "• `/gbanlist` - Gbanned users\n\n"
+        "**⚙️ System:**\n"
+        "• `/restart` - Restart bot\n"
+        "• `/sudolist` - Sudo users\n"
     )
+    
     HELP_OTHERS = (
-        "**Other Commands:**\n\n"
-        "**» /start**\n"
-        "    __Check if the bot is alive.__\n\n"
-        "**» /ping**\n"
-        "    __Check ping of the bot.__\n\n"
-        "**» /help**\n"
-        "    __Show this menu.__\n\n"
-        "**» /sysinfo**\n"
-        "    __Show system information of the bot.__\n\n"
-        "**» /leaderboard ; /topusers**\n"
-        "    __Show the top 10 users with most number of songs played.__\n\n"
+        "╭─────────────────────╮\n"
+        "│  **📚 Other Commands**\n"
+        "╰─────────────────────╯\n\n"
+        "**ℹ️ General:**\n"
+        "• `/start` - Check if alive\n"
+        "• `/ping` - Check ping\n"
+        "• `/help` - Show help menu\n"
+        "• `/sysinfo` - System info\n"
+        "• `/leaderboard` - Top users\n"
     )
+    
     HELP_OWNERS = (
-        "**Owner Commands:**\n\n"
-        "**» /eval ; /run**\n"
-        "    __Execute the python script.__\n\n"
-        "**» /exec ; /term ; /sh**\n"
-        "    __Execute the bash script.__\n\n"
-        "**» /getvar ; /gvar ; /var**\n"
-        "    __Get the value of the config variable.__\n\n"
-        "**» /addsudo**\n"
-        "    __Add sudo user of the bot who can use sudo commands.__\n\n"
-        "**» /rmsudo ; /delsudo**\n"
-        "    __Remove sudo user of the bot.__\n\n"
+        "╭─────────────────────╮\n"
+        "│  **🔱 Owner Commands**\n"
+        "╰─────────────────────╯\n\n"
+        "**💻 Execution:**\n"
+        "• `/eval` `/run` - Python script\n"
+        "• `/exec` `/sh` - Bash script\n\n"
+        "**⚙️ Config:**\n"
+        "• `/getvar` - Get config var\n\n"
+        "**👑 Sudo Management:**\n"
+        "• `/addsudo` - Add sudo user\n"
+        "• `/rmsudo` - Remove sudo user\n"
     )
+    
     HELP_GC = (
-        "Get the help menu in your PM. "
-        "__Click the button below!__"
+        "**❓ Need Help?**\n\n"
+        "Get the complete help menu in your PM.\n"
+        "Click the button below to get started!"
     )
+    
     HELP_PM = (
-        "**Help ⚙️**\n\n"
-        "__» All commands are categorized based on their usability and target users.__\n"
-        "__» You can use these buttons below to navigate each category and get respective commands.__\n"
-        "__» Feel free to contact us if you need any help regarding the bot.__\n\n"
-        "❤️🎶 {0}"
+        "╭─────────────────────╮\n"
+        "│  **⚙️ Help Menu**\n"
+        "╰─────────────────────╯\n\n"
+        "**📌 Information:**\n"
+        "• Commands are categorized by user type\n"
+        "• Use buttons below to navigate\n"
+        "• Contact us if you need assistance\n\n"
+        "**🔗 Powered By:** {0}"
     )
+    
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # Start Messages
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
     START_GC = (
-        "Yeah, I'm alive! "
-        "__Wanna listen to some music?__"
+        "**🎵 HellMusic is Online!**\n\n"
+        "Ready to play some awesome music?\n"
+        "Use `/help` to see all commands!"
     )
+    
     START_PM = (
-        "**Hello there** {0}**!**\n\n"
-        "**I'm** {1} **, a music bot that can play music on Voice Chats.**\n"
-        "**Add me to your group and play music freely!**\n\n"
-        "__» Feel free to dive in, try different commands, and have fun discovering all the possibilities!__\n"
-        "__» Enjoy the music and let us know if you have any suggestions for improvement.__\n\n"
-        "❤️🎶 @{2}"
+        "╭─────────────────────╮\n"
+        "│  **👋 Welcome!**\n"
+        "╰─────────────────────╯\n\n"
+        "**Hey** {0}**!**\n\n"
+        "I'm **{1}**, an advanced music bot that can play music in Voice Chats with high quality streaming!\n\n"
+        "**✨ Features:**\n"
+        "• High-quality audio streaming\n"
+        "• Video playback support\n"
+        "• Queue management\n"
+        "• Favorites system\n"
+        "• Advanced controls\n\n"
+        "Add me to your group and enjoy unlimited music!\n\n"
+        "**🔗 Powered By:** @{2}"
     )
-    PERFORMER = "[ †hê Hêllẞø† ]"
+    
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # Miscellaneous
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
+    PERFORMER = "HellMusic V3"
+    
+    # Error messages
+    ERROR_GENERIC = (
+        "**❌ An Error Occurred**\n\n"
+        "```{0}```\n\n"
+        "Please try again later or contact support."
+    )
+    
+    ERROR_NO_VC = (
+        "**❌ No Active Voice Chat**\n\n"
+        "Please start a voice chat first!"
+    )
+    
+    ERROR_NO_PERMISSION = (
+        "**❌ Insufficient Permissions**\n\n"
+        "You don't have permission to use this command."
+    )
+    
+    # Success messages
+    SUCCESS_GENERIC = (
+        "**✅ Success**\n\n"
+        "{0}"
+    )
+    
+    # Loading messages
+    LOADING = "**⏳ Processing...**\n\nPlease wait..."
+    SEARCHING = "**🔍 Searching...**\n\n`{0}`"
+    DOWNLOADING = "**📥 Downloading...**\n\n`{0}`"
+    PROCESSING = "**⚙️ Processing...**\n\n`{0}`"
