@@ -72,4 +72,4 @@ async def start_bot():
 
 
 if __name__ == "__main__":
-    hellbot.run(start_bot())
+    hellbot.(start_bot())
