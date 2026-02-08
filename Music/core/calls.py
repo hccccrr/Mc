@@ -177,7 +177,9 @@ class HellMusic(PyTgCalls):
         try:
             get = Queue.get_queue(chat_id)
             if get == []:
+                LOGS.info(f"Queue empty for chat {chat_id}, leaving VC")
                 return await self.leave_vc(chat_id)
+            
             loop = await db.get_loop(chat_id)
             if loop == 0:
                 file = Queue.rm_queue(chat_id, 0)
@@ -185,13 +187,16 @@ class HellMusic(PyTgCalls):
             else:
                 await db.set_loop(chat_id, loop - 1)
         except Exception as e:
-            LOGS.error(e)
+            LOGS.error(f"Error in change_vc processing queue: {e}")
             return await self.leave_vc(chat_id)
         
+        # Check queue again after processing
         get = Queue.get_queue(chat_id)
         if get == []:
+            LOGS.info(f"No more songs in queue for chat {chat_id}, leaving VC")
             return await self.leave_vc(chat_id)
         
+        # Get next song details
         chat_id = get[0]["chat_id"]
         duration = get[0]["duration"]
         queue = get[0]["file"]
@@ -210,9 +215,15 @@ class HellMusic(PyTgCalls):
             if tg:
                 to_stream = queue
             else:
-                to_stream = await ytube.download(
-                    video_id, True, True if vc_type == "video" else False
-                )
+                try:
+                    to_stream = await ytube.download(
+                        video_id, True, True if vc_type == "video" else False
+                    )
+                except Exception as e:
+                    LOGS.error(f"Error downloading next song: {e}")
+                    # Try next song in queue
+                    Queue.rm_queue(chat_id, 0)
+                    return await self.change_vc(chat_id)
             
             # Create MediaStream for PyTgCalls 2.2.8
             if vc_type == "video":
@@ -279,6 +290,7 @@ class HellMusic(PyTgCalls):
                     f"**â¤· Song:** `{title}` \n**â¤· Chat:** {chat_name} [`{chat_id}`] \n**â¤· User:** {user}",
                 )
             except Exception as e:
+                LOGS.error(f"Error in change_vc streaming: {e}")
                 raise ChangeVCException(f"[ChangeVCException]: {e}")
 
     async def join_vc(self, chat_id: int, file_path: str, video: bool = False):
