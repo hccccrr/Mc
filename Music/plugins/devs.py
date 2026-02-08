@@ -1,16 +1,21 @@
+import asyncio
 import io
 import os
 import re
 import subprocess
 import sys
 import traceback
+from datetime import datetime
 
+from git import Repo, InvalidGitRepositoryError, GitCommandError
 from pyrogram import filters
 from pyrogram.types import Message
 
 from config import Config, all_vars
+from Music.core.calls import hellmusic
 from Music.core.clients import hellbot
 from Music.core.database import db
+from Music.core.decorators import UserWrapper
 
 
 async def aexec(code, client, message):
@@ -23,10 +28,10 @@ async def aexec(code, client, message):
 
 @hellbot.app.on_message(filters.command(["eval", "run"]) & Config.GOD_USERS)
 async def eval(_, message: Message):
-    hell = await message.reply_text("Processing ...")
+    hell = await message.reply_text("**Processing...**")
     lists = message.text.split(" ", 1)
     if len(lists) != 2:
-        return await hell.edit_text("Received empty message!")
+        return await hell.edit_text("**Received empty message!**")
     cmd = lists[1].strip()
     reply_to = message.reply_to_message or message
 
@@ -35,14 +40,17 @@ async def eval(_, message: Message):
     redirected_output = sys.stdout = io.StringIO()
     redirected_error = sys.stderr = io.StringIO()
     stdout, stderr, exc = None, None, None
+    
     try:
         await aexec(cmd, hellbot, message)
     except Exception:
         exc = traceback.format_exc()
+    
     stdout = redirected_output.getvalue()
     stderr = redirected_error.getvalue()
     sys.stdout = old_stdout
     sys.stderr = old_stderr
+    
     evaluation = ""
     if exc:
         evaluation = exc
@@ -52,10 +60,12 @@ async def eval(_, message: Message):
         evaluation = stdout
     else:
         evaluation = "Success"
+    
     final_output = "<b>EVAL</b>: "
     final_output += f"<code>{cmd}</code>\n\n"
     final_output += "<b>OUTPUT</b>:\n"
     final_output += f"<code>{evaluation.strip()}</code> \n"
+    
     if len(final_output) > 4096:
         with io.BytesIO(str.encode(final_output)) as out_file:
             out_file.name = "eval.txt"
@@ -68,14 +78,15 @@ async def eval(_, message: Message):
 
 
 @hellbot.app.on_message(
-    filters.command(["exec", "term", "sh", "shh"]) & Config.GOD_USERS
+    filters.command(["exec", "term", "sh", "shell"]) & Config.GOD_USERS
 )
 async def term(_, message: Message):
-    hell = await message.reply_text("Processing ...")
+    hell = await message.reply_text("**Processing...**")
     lists = message.text.split(" ", 1)
     if len(lists) != 2:
-        return await hell.edit_text("Received empty message!")
+        return await hell.edit_text("**Received empty message!**")
     cmd = lists[1].strip()
+    
     if "\n" in cmd:
         code = cmd.split("\n")
         output = ""
@@ -105,8 +116,10 @@ async def term(_, message: Message):
             await hell.edit("**Error:**\n`{}`".format("".join(errors)))
             return
         output = process.stdout.read()[:-1].decode("utf-8")
+    
     if str(output) == "\n":
         output = None
+    
     if output:
         if len(output) > 4096:
             filename = "output.txt"
@@ -126,13 +139,13 @@ async def term(_, message: Message):
 @hellbot.app.on_message(filters.command(["getvar", "gvar", "var"]) & Config.GOD_USERS)
 async def varget_(_, message: Message):
     if len(message.command) != 2:
-        return await message.reply_text("Give a variable name to get it's value.")
+        return await message.reply_text("**Give a variable name to get it's value.**")
     check_var = message.text.split(None, 2)[1]
     if check_var.upper() not in all_vars:
-        return await message.reply_text("Give a valid variable name to get it's value.")
+        return await message.reply_text("**Give a valid variable name to get it's value.**")
     output = Config.__dict__[check_var.upper()]
     if not output:
-        await message.reply_text("No Output Found!")
+        await message.reply_text("**No Output Found!**")
     else:
         return await message.reply_text(f"**{check_var}:** `{str(output)}`")
 
@@ -142,33 +155,33 @@ async def useradd(_, message: Message):
     if not message.reply_to_message:
         if len(message.command) != 2:
             return await message.reply_text(
-                "Reply to a user or give a user id to add them as sudo."
+                "**Reply to a user or give a user id to add them as sudo.**"
             )
         user = message.text.split(None, 1)[1]
         if "@" in user:
             user = user.replace("@", "")
         user = await hellbot.app.get_users(user)
         if user.id in Config.SUDO_USERS:
-            return await message.reply_text(f"{user.mention} is already a sudo user.")
+            return await message.reply_text(f"**{user.mention} is already a sudo user.**")
         added = await db.add_sudo(user.id)
         if added:
             Config.SUDO_USERS.add(user.id)
-            await message.reply_text(f"{user.mention} is now a sudo user.")
+            await message.reply_text(f"**{user.mention} is now a sudo user.**")
         else:
-            await message.reply_text("Failed to add sudo user.")
+            await message.reply_text("**Failed to add sudo user.**")
         return
     if message.reply_to_message.from_user.id in Config.SUDO_USERS:
         return await message.reply_text(
-            f"{message.reply_to_message.from_user.mention} is already a sudo user."
+            f"**{message.reply_to_message.from_user.mention} is already a sudo user.**"
         )
     added = await db.add_sudo(message.reply_to_message.from_user.id)
     if added:
         Config.SUDO_USERS.add(message.reply_to_message.from_user.id)
         await message.reply_text(
-            f"{message.reply_to_message.from_user.mention} is now a sudo user."
+            f"**{message.reply_to_message.from_user.mention} is now a sudo user.**"
         )
     else:
-        await message.reply_text("Failed to add sudo user.")
+        await message.reply_text("**Failed to add sudo user.**")
     return
 
 
@@ -177,49 +190,34 @@ async def userdel(_, message: Message):
     if not message.reply_to_message:
         if len(message.command) != 2:
             return await message.reply_text(
-                "Reply to a user or give a user id to remove them from sudo."
+                "**Reply to a user or give a user id to remove them from sudo.**"
             )
         user = message.text.split(None, 1)[1]
         if "@" in user:
             user = user.replace("@", "")
         user = await hellbot.app.get_users(user)
         if user.id not in Config.SUDO_USERS:
-            return await message.reply_text(f"{user.mention} is not a sudo user.")
+            return await message.reply_text(f"**{user.mention} is not a sudo user.**")
         removed = await db.remove_sudo(user.id)
         if removed:
             Config.SUDO_USERS.remove(user.id)
-            await message.reply_text(f"{user.mention} is no longer a sudo user.")
+            await message.reply_text(f"**{user.mention} is no longer a sudo user.**")
             return
-        await message.reply_text("Failed to remove sudo user.")
+        await message.reply_text("**Failed to remove sudo user.**")
         return
     user_id = message.reply_to_message.from_user.id
     if user_id not in Config.SUDO_USERS:
         return await message.reply_text(
-            f"{message.reply_to_message.from_user.mention} is not a sudo user."
+            f"**{message.reply_to_message.from_user.mention} is not a sudo user.**"
         )
     removed = await db.remove_sudo(user_id)
     if removed:
         Config.SUDO_USERS.remove(user_id)
         await message.reply_text(
-            f"{message.reply_to_message.from_user.mention} is no longer a sudo user."
+            f"**{message.reply_to_message.from_user.mention} is no longer a sudo user.**"
         )
         return
-    await message.reply_text("Failed to remove sudo user.")
-
-
-import asyncio
-import os
-from datetime import datetime
-
-from git import Repo, InvalidGitRepositoryError, GitCommandError
-from pyrogram import filters
-from pyrogram.types import Message
-
-from config import Config
-from Music.core.calls import hellmusic
-from Music.core.clients import hellbot
-from Music.core.database import db
-from Music.core.decorators import UserWrapper
+    await message.reply_text("**Failed to remove sudo user.**")
 
 
 async def is_heroku():
@@ -242,6 +240,31 @@ async def paste_to_bin(text):
     except:
         pass
     return None
+
+
+def backup_env():
+    """Backup .env file before update"""
+    try:
+        if os.path.exists(".env"):
+            import shutil
+            shutil.copy2(".env", ".env.backup")
+            return True
+    except Exception as e:
+        print(f"Backup error: {e}")
+    return False
+
+
+def restore_env():
+    """Restore .env file after update"""
+    try:
+        if os.path.exists(".env.backup"):
+            import shutil
+            shutil.copy2(".env.backup", ".env")
+            os.remove(".env.backup")
+            return True
+    except Exception as e:
+        print(f"Restore error: {e}")
+    return False
 
 
 @hellbot.app.on_message(filters.command(["update", "gitpull"]) & Config.SUDO_USERS)
@@ -271,6 +294,11 @@ async def update_(_, message: Message):
             "The directory is not a valid git repository."
         )
     
+    # Backup .env file
+    backup_success = backup_env()
+    if backup_success:
+        await response.edit("**Backing up configuration...**")
+    
     # Fetch updates
     upstream_branch = Config.UPSTREAM_BRANCH if hasattr(Config, 'UPSTREAM_BRANCH') else "main"
     to_exc = f"git fetch origin {upstream_branch} &> /dev/null"
@@ -285,7 +313,10 @@ async def update_(_, message: Message):
         verification = str(checks.count())
     
     if verification == "":
-        return await response.edit("**ʙᴏᴛ ɪs ᴜᴩ-ᴛᴏ-ᴅᴀᴛᴇ ᴡɪᴛʜ** `{}`".format(upstream_branch))
+        # Restore .env if backed up
+        if backup_success:
+            restore_env()
+        return await response.edit(f"**ʙᴏᴛ ɪs ᴜᴩ-ᴛᴏ-ᴅᴀᴛᴇ ᴡɪᴛʜ** `{upstream_branch}`")
     
     # Prepare update message
     ordinal = lambda n: "%d%s" % (
@@ -321,12 +352,35 @@ async def update_(_, message: Message):
     else:
         nrs = await response.edit(final_updates, disable_web_page_preview=True)
     
-    # Pull updates
-    os.system("git stash &> /dev/null && git pull")
+    # Add .env to gitignore if not already
+    try:
+        gitignore_path = ".gitignore"
+        if os.path.exists(gitignore_path):
+            with open(gitignore_path, "r") as f:
+                gitignore_content = f.read()
+            if ".env" not in gitignore_content:
+                with open(gitignore_path, "a") as f:
+                    f.write("\n.env\n.env.backup\n")
+        else:
+            with open(gitignore_path, "w") as f:
+                f.write(".env\n.env.backup\n")
+    except:
+        pass
+    
+    # Pull updates - stash .env first to prevent conflicts
+    os.system("git add .gitignore")
+    os.system("git stash push -m 'Stashing local changes' -- .env .env.backup")
+    os.system(f"git pull origin {upstream_branch}")
+    
+    # Restore .env file
+    if backup_success:
+        restore_env()
+        await asyncio.sleep(1)
     
     # Notify active chats
     try:
         active_chats = await db.get_active_vc()
+        count = 0
         for x in active_chats:
             cid = int(x["chat_id"])
             try:
@@ -336,17 +390,21 @@ async def update_(_, message: Message):
                     f"ʙᴏᴛ ᴡɪʟʟ ʙᴇ ʙᴀᴄᴋ ɪɴ ᴀ ᴍɪɴᴜᴛᴇ.",
                 )
                 await hellmusic.leave_vc(cid)
+                count += 1
             except:
                 pass
+        
         await response.edit(
-            f"{nrs.text}\n\n**ᴜᴩᴅᴀᴛᴇ ᴄᴏᴍᴩʟᴇᴛᴇᴅ!**\n**Rᴇsᴛᴀʀᴛɪɴɢ...**"
+            f"{nrs.text}\n\n**✅ ᴜᴩᴅᴀᴛᴇ ᴄᴏᴍᴩʟᴇᴛᴇᴅ!**\n"
+            f"**Notified:** {count} chats\n"
+            f"**🔄 Rᴇsᴛᴀʀᴛɪɴɢ...**"
         )
-    except:
-        pass
+    except Exception as e:
+        print(f"Notification error: {e}")
     
     # Install requirements and restart
-    os.system("pip3 install -r requirements.txt")
+    await asyncio.sleep(2)
+    os.system("pip3 install -r requirements.txt &> /dev/null")
     os.system(f"kill -9 {os.getpid()} && bash StartMusic")
     exit()
-
-
+    
