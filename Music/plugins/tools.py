@@ -112,18 +112,16 @@ from Music.core.clients import hellbot
 from Music.core.decorators import UserWrapper
 
 
+
 @hellbot.app.on_message(filters.command("gclink") & Config.SUDO_USERS)
 @UserWrapper
 async def get_gc_link(_, message: Message):
     """Get group invite link"""
-    if message.chat.type not in ["group", "supergroup"]:
-        return await message.reply_text(
-            "**❌ This command works only in groups.**"
-        )
-    
     try:
         link = await hellbot.app.export_chat_invite_link(message.chat.id)
-        await message.reply_text(f"**🔗 Group Invite Link:**\n\n{link}")
+        await message.reply_text(
+            f"**🔗 Group Invite Link:**\n\n{link}"
+        )
     except ChatAdminRequired:
         await message.reply_text(
             "**❌ I need 'Invite Users via Link' permission to generate link.**"
