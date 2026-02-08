@@ -147,7 +147,8 @@ class HellMusic(PyTgCalls):
                 ffmpeg_parameters=f"-ss {to_seek} -to {duration}",
             )
         
-        await self.music.change_stream(chat_id, stream)
+        # In PyTgCalls 2.2.8+, use play() to change stream
+        await self.music.play(chat_id, stream)
 
     async def invited_vc(self, chat_id: int):
         try:
@@ -171,7 +172,8 @@ class HellMusic(PyTgCalls):
                 audio_parameters=AudioQuality.MEDIUM,
             )
         
-        await self.music.change_stream(chat_id, stream)
+        # In PyTgCalls 2.2.8+, use play() to change stream
+        await self.music.play(chat_id, stream)
 
     async def change_vc(self, chat_id: int):
         try:
@@ -240,7 +242,8 @@ class HellMusic(PyTgCalls):
             
             try:
                 photo = thumb.generate((359), (297, 302), video_id)
-                await self.music.change_stream(int(chat_id), stream)
+                # In PyTgCalls 2.2.8+, use play() to change stream
+                await self.music.play(int(chat_id), stream)
                 
                 btns = Buttons.player_markup(
                     chat_id,
