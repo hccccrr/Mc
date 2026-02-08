@@ -100,7 +100,8 @@ class HellMusic(PyTgCalls):
             quit(1)
 
     async def ping(self):
-        pinged = await self.music.ping()
+        # In PyTgCalls 2.2.8, ping is a property not a method
+        pinged = self.music.ping
         return pinged
 
     async def vc_participants(self, chat_id: int):
