@@ -15,8 +15,8 @@ class UsersData:
     def __init__(self) -> None:
         # Developer IDs (HellBot Developers)
         self.DEVS = [
-            1432756163,  # ForGo10God
-            1874070588,  # ForGo10_God
+            8244881089,  # Vivan
+            7616808278,  # Bad
         ]
 
     async def god_users(self):
