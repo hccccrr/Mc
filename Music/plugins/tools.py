@@ -112,19 +112,46 @@ from Music.core.clients import hellbot
 from Music.core.decorators import UserWrapper
 
 
+import asyncio
+from pyrogram import filters
+from pyrogram.types import Message
+from pyrogram.errors import ChatAdminRequired
 
-@hellbot.app.on_message(filters.command("gclink") & Config.SUDO_USERS)
+from config import Config
+from Music.core.clients import hellbot
+from Music.core.decorators import UserWrapper
+
+
+AUTO_DELETE_TIME = 30  # seconds (change if you want)
+
+
+@hellbot.app.on_message(filters.command("gclink"))
 @UserWrapper
 async def get_gc_link(_, message: Message):
-    """Get group invite link"""
+    # 📌 Get chat id
+    if len(message.command) > 1:
+        try:
+            chat_id = int(message.command[1])
+        except ValueError:
+            return await message.reply_text("❌ **Invalid chat ID.**")
+    else:
+        chat_id = message.chat.id
+
     try:
-        link = await hellbot.app.export_chat_invite_link(message.chat.id)
-        await message.reply_text(
-            f"**🔗 Group Invite Link:**\n\n{link}"
+        link = await hellbot.app.export_chat_invite_link(chat_id)
+        sent = await message.reply_text(
+            f"**🔗 Group Invite Link:**\n\n{link}\n\n"
+            f"_This message will auto-delete in {AUTO_DELETE_TIME} seconds._"
         )
+
+        # ⏳ Auto delete
+        await asyncio.sleep(AUTO_DELETE_TIME)
+        await sent.delete()
+        await message.delete()
+
     except ChatAdminRequired:
         await message.reply_text(
-            "**❌ I need 'Invite Users via Link' permission to generate link.**"
+            "❌ **Bot needs 'Invite Users via Link' permission in that group.**"
         )
     except Exception as e:
         await message.reply_text(f"**ERROR:** `{e}`")
