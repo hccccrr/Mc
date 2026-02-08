@@ -28,7 +28,7 @@ frozenlist==1.4.1
 multidict==6.0.5
 yarl==1.9.4
 
-# HTTP Client (FIXED VERSION for compatibility)
+# HTTP Client 
 h11==0.14.0
 httpcore==1.0.5
 httpx==0.28.1
@@ -83,4 +83,5 @@ yt-dlp==2024.8.6
 pytz==2024.1
 tzdata==2024.1
 tzlocal==5.2
+
 
