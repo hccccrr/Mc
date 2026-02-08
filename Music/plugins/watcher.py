@@ -67,20 +67,21 @@ async def vc_end(_, msg: Message):
     await msg.continue_propagation()
 
 
-# PyTgCalls 2.2.8 uses @on_update() decorator instead of individual decorators
+# PyTgCalls 2.2.8/2.2.11 uses @on_update() decorator
 @hellmusic.music.on_update()
 async def handle_vc_updates(client, update: Update):
     """
-    Handle all voice chat updates in PyTgCalls 2.2.8
+    Handle all voice chat updates in PyTgCalls 2.2.8+
     This includes: StreamEnded, ChatUpdate, etc.
     """
-    # Handle stream end
-    if isinstance(update, StreamEnded):
-        await hellmusic.change_vc(update.chat_id)
-    
-    # Handle participants change
-    elif isinstance(update, ChatUpdate):
-        try:
+    try:
+        # Handle stream end - Play next song in queue
+        if isinstance(update, StreamEnded):
+            chat_id = update.chat_id
+            await hellmusic.change_vc(chat_id)
+        
+        # Handle participants change
+        elif isinstance(update, ChatUpdate):
             chat_id = update.chat_id
             audience = hellmusic.audience.get(chat_id)
             
@@ -95,29 +96,28 @@ async def handle_vc_updates(client, update: Update):
                 current_count = len(users)
                 hellmusic.audience[chat_id] = current_count
                 await hellmusic.autoend(chat_id, user_ids)
-        except Exception as e:
-            LOGS.error(f"Error handling chat update: {e}")
+    except Exception as e:
+        LOGS.error(f"Error in handle_vc_updates: {e}")
 
 
-# Alternative: If you need separate handling for kicked/left events
+# Handle when bot is kicked or leaves voice chat
 @hellmusic.music.on_update()
 async def handle_vc_left(client, update: Update):
     """
     Handle when bot is kicked or leaves voice chat
     """
     if isinstance(update, ChatUpdate):
-        # Check if bot left the call
         try:
             chat_id = update.chat_id
             participants = update.participants if hasattr(update, 'participants') else []
             bot_in_call = any(p.user_id == hellbot.user.id for p in participants)
             
-            if not bot_in_call:
-                # Bot was kicked or left
+            # If bot left, clean up
+            if not bot_in_call and chat_id in hellmusic.audience:
                 await hellmusic.leave_vc(chat_id)
                 await db.set_loop(chat_id, 0)
-        except:
-            pass
+        except Exception as e:
+            LOGS.error(f"Error in handle_vc_left: {e}")
 
 
 async def update_played():
