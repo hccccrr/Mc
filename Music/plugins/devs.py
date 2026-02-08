@@ -205,3 +205,148 @@ async def userdel(_, message: Message):
         )
         return
     await message.reply_text("Failed to remove sudo user.")
+
+
+import asyncio
+import os
+from datetime import datetime
+
+from git import Repo, InvalidGitRepositoryError, GitCommandError
+from pyrogram import filters
+from pyrogram.types import Message
+
+from config import Config
+from Music.core.calls import hellmusic
+from Music.core.clients import hellbot
+from Music.core.database import db
+from Music.core.decorators import UserWrapper
+
+
+async def is_heroku():
+    """Check if running on Heroku"""
+    return "DYNO" in os.environ
+
+
+async def paste_to_bin(text):
+    """Paste text to a pastebin service"""
+    try:
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "https://nekobin.com/api/documents",
+                json={"content": text}
+            ) as resp:
+                if resp.status == 201:
+                    data = await resp.json()
+                    return f"https://nekobin.com/{data['result']['key']}"
+    except:
+        pass
+    return None
+
+
+@hellbot.app.on_message(filters.command(["update", "gitpull"]) & Config.SUDO_USERS)
+@UserWrapper
+async def update_(_, message: Message):
+    """Update the bot from git repository"""
+    
+    # Check if on Heroku
+    if await is_heroku():
+        return await message.reply_text(
+            "**Heroku Update:**\n"
+            "Please use Heroku dashboard or CLI to update your bot on Heroku."
+        )
+    
+    response = await message.reply_text("**Checking for updates...**")
+    
+    try:
+        repo = Repo()
+    except GitCommandError:
+        return await response.edit(
+            "**Git Error:**\n"
+            "Git command failed. Make sure git is installed properly."
+        )
+    except InvalidGitRepositoryError:
+        return await response.edit(
+            "**Invalid Repository:**\n"
+            "The directory is not a valid git repository."
+        )
+    
+    # Fetch updates
+    upstream_branch = Config.UPSTREAM_BRANCH if hasattr(Config, 'UPSTREAM_BRANCH') else "main"
+    to_exc = f"git fetch origin {upstream_branch} &> /dev/null"
+    os.system(to_exc)
+    await asyncio.sleep(3)
+    
+    # Check for updates
+    verification = ""
+    REPO_URL = repo.remotes.origin.url.split(".git")[0]
+    
+    for checks in repo.iter_commits(f"HEAD..origin/{upstream_branch}"):
+        verification = str(checks.count())
+    
+    if verification == "":
+        return await response.edit("**ʙᴏᴛ ɪs ᴜᴩ-ᴛᴏ-ᴅᴀᴛᴇ ᴡɪᴛʜ** `{}`".format(upstream_branch))
+    
+    # Prepare update message
+    ordinal = lambda n: "%d%s" % (
+        n,
+        "tsnrhtdd"[(n // 10 % 10 != 1) * (n % 10 < 4) * n % 10 :: 4],
+    )
+    
+    updates = ""
+    for info in repo.iter_commits(f"HEAD..origin/{upstream_branch}"):
+        updates += (
+            f"<b>➣ #{info.count()}: "
+            f"<a href={REPO_URL}/commit/{info}>{info.summary}</a> "
+            f"ʙʏ {info.author}</b>\n"
+            f"<b>➥ ᴄᴏᴍᴍɪᴛᴇᴅ ᴏɴ:</b> "
+            f"{ordinal(int(datetime.fromtimestamp(info.committed_date).strftime('%d')))} "
+            f"{datetime.fromtimestamp(info.committed_date).strftime('%b')}, "
+            f"{datetime.fromtimestamp(info.committed_date).strftime('%Y')}\n\n"
+        )
+    
+    update_msg = (
+        "<b>ᴀ ɴᴇᴡ ᴜᴩᴅᴀᴛᴇ ɪs ᴀᴠᴀɪʟᴀʙʟᴇ ғᴏʀ ᴛʜᴇ ʙᴏᴛ!</b>\n\n"
+        "➣ ᴩᴜsʜɪɴɢ ᴜᴩᴅᴀᴛᴇs ɴᴏᴡ\n\n"
+        "<b><u>ᴜᴩᴅᴀᴛᴇs:</u></b>\n\n"
+    )
+    final_updates = update_msg + updates
+    
+    # Send update message
+    if len(final_updates) > 4096:
+        url = await paste_to_bin(updates)
+        nrs = await response.edit(
+            f"{update_msg}<a href={url}>ᴄʜᴇᴄᴋ ᴜᴩᴅᴀᴛᴇs</a>"
+        )
+    else:
+        nrs = await response.edit(final_updates, disable_web_page_preview=True)
+    
+    # Pull updates
+    os.system("git stash &> /dev/null && git pull")
+    
+    # Notify active chats
+    try:
+        active_chats = await db.get_active_vc()
+        for x in active_chats:
+            cid = int(x["chat_id"])
+            try:
+                await hellbot.app.send_message(
+                    chat_id=cid,
+                    text=f"**{hellbot.app.mention} ɪs ᴜᴩᴅᴀᴛɪɴɢ...**\n\n"
+                    f"ʙᴏᴛ ᴡɪʟʟ ʙᴇ ʙᴀᴄᴋ ɪɴ ᴀ ᴍɪɴᴜᴛᴇ.",
+                )
+                await hellmusic.leave_vc(cid)
+            except:
+                pass
+        await response.edit(
+            f"{nrs.text}\n\n**ᴜᴩᴅᴀᴛᴇ ᴄᴏᴍᴩʟᴇᴛᴇᴅ!**\n**Rᴇsᴛᴀʀᴛɪɴɢ...**"
+        )
+    except:
+        pass
+    
+    # Install requirements and restart
+    os.system("pip3 install -r requirements.txt")
+    os.system(f"kill -9 {os.getpid()} && bash StartMusic")
+    exit()
+
+
