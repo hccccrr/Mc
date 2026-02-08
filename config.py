@@ -29,6 +29,10 @@ class Config(object):
     TG_AUDIO_SIZE_LIMIT = int(getenv("TG_AUDIO_SIZE_LIMIT", 104857600))     # size in bytes. 0 for no limit
     TG_VIDEO_SIZE_LIMIT = int(getenv("TG_VIDEO_SIZE_LIMIT", 1073741824))    # size in bytes. 0 for no limit
     TZ = getenv("TZ", "Asia/Kolkata")   # https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+    UPSTREAM_REPO = getenv("UPSTREAM_REPO","https://github.com/hccccrr/Mc",)
+    UPSTREAM_BRANCH = getenv("UPSTREAM_BRANCH", "master")
+    GIT_TOKEN = getenv("GIT_TOKEN","",) # GIT TOKEN ( if your edited repo is private)
+
 
     # do not edit these variables
     BANNED_USERS = filters.user()
