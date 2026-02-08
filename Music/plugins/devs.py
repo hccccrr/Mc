@@ -21,7 +21,7 @@ async def aexec(code, client, message):
     return await locals()["__aexec"](client, message)
 
 
-@hellbot.app.on_message(filters.command(["eval", "run"]) & Config.SUDO_USERS))
+@hellbot.app.on_message(filters.command(["eval", "run"]) & Config.GOD_USERS)
 async def eval(_, message: Message):
     hell = await message.reply_text("Processing ...")
     lists = message.text.split(" ", 1)
