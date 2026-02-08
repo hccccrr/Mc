@@ -1,17 +1,26 @@
 import datetime
 import os
 
+from ntgcalls import TelegramServerError
+from pyrogram import Client
 from pyrogram.enums import ChatMemberStatus
 from pyrogram.errors import (
     ChatAdminRequired,
+    FloodWait,
     UserAlreadyParticipant,
     UserNotParticipant,
 )
 from pyrogram.types import InlineKeyboardMarkup
-from pytgcalls import PyTgCalls, StreamType
-from pytgcalls.exceptions import AlreadyJoinedError, NoActiveGroupCall
-from pytgcalls.types.input_stream import AudioPiped, AudioVideoPiped
-from pytgcalls.types.input_stream.quality import MediumQualityAudio, MediumQualityVideo
+from pytgcalls import PyTgCalls
+from pytgcalls.exceptions import NoActiveGroupCall
+from pytgcalls.types import (
+    AudioQuality,
+    ChatUpdate,
+    MediaStream,
+    StreamEnded,
+    Update,
+    VideoQuality,
+)
 
 from config import Config
 from Music.helpers.buttons import Buttons
@@ -43,6 +52,16 @@ class HellMusic(PyTgCalls):
     def __init__(self):
         self.music = PyTgCalls(hellbot.user)
         self.audience = {}
+        
+        # Register handlers for PyTgCalls 2.2.8
+        @self.music.on_update()
+        async def on_update_handler(client: PyTgCalls, update: Update):
+            if isinstance(update, StreamEnded):
+                await self.change_vc(update.chat_id)
+            elif isinstance(update, ChatUpdate):
+                users = update.participants
+                user_ids = [user.user_id for user in users]
+                await self.autoend(update.chat_id, user_ids)
 
     async def autoend(self, chat_id: int, users: list):
         autoend = await db.get_autoend()
@@ -81,29 +100,35 @@ class HellMusic(PyTgCalls):
             quit(1)
 
     async def ping(self):
-        pinged = await self.music.ping
+        pinged = await self.music.ping()
         return pinged
 
     async def vc_participants(self, chat_id: int):
-        users = await self.music.get_participants(chat_id)
-        return users
+        # In PyTgCalls 2.2.8, we need to get active call first
+        try:
+            call = await self.music.get_call(chat_id)
+            if call:
+                return call.participants if hasattr(call, 'participants') else []
+            return []
+        except:
+            return []
 
     async def mute_vc(self, chat_id: int):
-        await self.music.mute_stream(chat_id)
+        await self.music.mute(chat_id)
 
     async def unmute_vc(self, chat_id: int):
-        await self.music.unmute_stream(chat_id)
+        await self.music.unmute(chat_id)
 
     async def pause_vc(self, chat_id: int):
-        await self.music.pause_stream(chat_id)
+        await self.music.pause(chat_id)
 
     async def resume_vc(self, chat_id: int):
-        await self.music.resume_stream(chat_id)
+        await self.music.resume(chat_id)
 
     async def leave_vc(self, chat_id: int, force: bool = False):
         try:
             await __clean__(chat_id, force)
-            await self.music.leave_group_call(chat_id)
+            await self.music.leave_call(chat_id)
         except:
             pass
         previous = Config.PLAYER_CACHE.get(chat_id)
@@ -115,20 +140,23 @@ class HellMusic(PyTgCalls):
 
     async def seek_vc(self, context: dict):
         chat_id, file_path, duration, to_seek, video = context.values()
+        
+        # Create MediaStream for PyTgCalls 2.2.8
         if video:
-            input_stream = AudioVideoPiped(
+            stream = MediaStream(
                 file_path,
-                MediumQualityAudio(),
-                MediumQualityVideo(),
-                additional_ffmpeg_parameters=f"-ss {to_seek} -to {duration}",
+                audio_parameters=AudioQuality.MEDIUM,
+                video_parameters=VideoQuality.SD_480p,
+                ffmpeg_parameters=f"-ss {to_seek} -to {duration}",
             )
         else:
-            input_stream = AudioPiped(
+            stream = MediaStream(
                 file_path,
-                MediumQualityAudio(),
-                additional_ffmpeg_parameters=f"-ss {to_seek} -to {duration}",
+                audio_parameters=AudioQuality.MEDIUM,
+                ffmpeg_parameters=f"-ss {to_seek} -to {duration}",
             )
-        await self.music.change_stream(chat_id, input_stream)
+        
+        await self.music.change_stream(chat_id, stream)
 
     async def invited_vc(self, chat_id: int):
         try:
@@ -139,13 +167,20 @@ class HellMusic(PyTgCalls):
             return
 
     async def replay_vc(self, chat_id: int, file_path: str, video: bool = False):
+        # Create MediaStream for PyTgCalls 2.2.8
         if video:
-            input_stream = AudioVideoPiped(
-                file_path, MediumQualityAudio(), MediumQualityVideo()
+            stream = MediaStream(
+                file_path,
+                audio_parameters=AudioQuality.MEDIUM,
+                video_parameters=VideoQuality.SD_480p,
             )
         else:
-            input_stream = AudioPiped(file_path, MediumQualityAudio())
-        await self.music.change_stream(chat_id, input_stream)
+            stream = MediaStream(
+                file_path,
+                audio_parameters=AudioQuality.MEDIUM,
+            )
+        
+        await self.music.change_stream(chat_id, stream)
 
     async def change_vc(self, chat_id: int):
         try:
@@ -161,9 +196,11 @@ class HellMusic(PyTgCalls):
         except Exception as e:
             LOGS.error(e)
             return await self.leave_vc(chat_id)
+        
         get = Queue.get_queue(chat_id)
         if get == []:
             return await self.leave_vc(chat_id)
+        
         chat_id = get[0]["chat_id"]
         duration = get[0]["duration"]
         queue = get[0]["file"]
@@ -171,10 +208,12 @@ class HellMusic(PyTgCalls):
         user_id = get[0]["user_id"]
         vc_type = get[0]["vc_type"]
         video_id = get[0]["video_id"]
+        
         try:
             user = (await hellbot.app.get_users(user_id)).mention(style="md")
         except:
             user = get[0]["user"]
+        
         if queue:
             tg = True if video_id == "telegram" else False
             if tg:
@@ -183,20 +222,30 @@ class HellMusic(PyTgCalls):
                 to_stream = await ytube.download(
                     video_id, True, True if vc_type == "video" else False
                 )
+            
+            # Create MediaStream for PyTgCalls 2.2.8
             if vc_type == "video":
-                input_stream = AudioVideoPiped(
-                    to_stream, MediumQualityAudio(), MediumQualityVideo()
+                stream = MediaStream(
+                    to_stream,
+                    audio_parameters=AudioQuality.MEDIUM,
+                    video_parameters=VideoQuality.SD_480p,
                 )
             else:
-                input_stream = AudioPiped(to_stream, MediumQualityAudio())
+                stream = MediaStream(
+                    to_stream,
+                    audio_parameters=AudioQuality.MEDIUM,
+                )
+            
             try:
                 photo = thumb.generate((359), (297, 302), video_id)
-                await self.music.change_stream(int(chat_id), input_stream)
+                await self.music.change_stream(int(chat_id), stream)
+                
                 btns = Buttons.player_markup(
                     chat_id,
                     "None" if video_id == "telegram" else video_id,
                     hellbot.app.username,
                 )
+                
                 if photo:
                     sent = await hellbot.app.send_photo(
                         int(chat_id),
@@ -222,37 +271,42 @@ class HellMusic(PyTgCalls):
                         disable_web_page_preview=True,
                         reply_markup=InlineKeyboardMarkup(btns),
                     )
+                
                 previous = Config.PLAYER_CACHE.get(chat_id)
                 if previous:
                     try:
                         await previous.delete()
                     except:
                         pass
+                
                 Config.PLAYER_CACHE[chat_id] = sent
                 await db.update_songs_count(1)
                 await db.update_user(user_id, "songs_played", 1)
                 chat_name = (await hellbot.app.get_chat(chat_id)).title
                 await hellbot.logit(
                     f"play {vc_type}",
-                    f"**⤷ Song:** `{title}` \n**⤷ Chat:** {chat_name} [`{chat_id}`] \n**⤷ User:** {user}",
+                    f"**â¤· Song:** `{title}` \n**â¤· Chat:** {chat_name} [`{chat_id}`] \n**â¤· User:** {user}",
                 )
             except Exception as e:
                 raise ChangeVCException(f"[ChangeVCException]: {e}")
 
     async def join_vc(self, chat_id: int, file_path: str, video: bool = False):
-        # define input stream
+        # Create MediaStream for PyTgCalls 2.2.8
         if video:
-            input_stream = AudioVideoPiped(
-                file_path, MediumQualityAudio(), MediumQualityVideo()
+            stream = MediaStream(
+                file_path,
+                audio_parameters=AudioQuality.MEDIUM,
+                video_parameters=VideoQuality.SD_480p,
             )
         else:
-            input_stream = AudioPiped(file_path, MediumQualityAudio())
-
-        # join vc
-        try:
-            await self.music.join_group_call(
-                chat_id, input_stream, stream_type=StreamType().pulse_stream
+            stream = MediaStream(
+                file_path,
+                audio_parameters=AudioQuality.MEDIUM,
             )
+
+        # Join VC using PyTgCalls 2.2.8 method
+        try:
+            await self.music.play(chat_id, stream)
         except NoActiveGroupCall:
             try:
                 await self.join_gc(chat_id)
@@ -260,23 +314,23 @@ class HellMusic(PyTgCalls):
                 await self.leave_vc(chat_id)
                 raise JoinGCException(e)
             try:
-                await self.music.join_group_call(
-                    chat_id, input_stream, stream_type=StreamType().pulse_stream
-                )
+                await self.music.play(chat_id, stream)
             except Exception as e:
                 await self.leave_vc(chat_id)
                 raise JoinVCException(f"[JoinVCException]: {e}")
-        except AlreadyJoinedError:
-            raise UserException(
-                f"[UserException]: Already joined in the voice chat. If this is a mistake then try to restart the voice chat."
-            )
+        except TelegramServerError as e:
+            if "GROUPCALL_ALREADY_STARTED" in str(e) or "already" in str(e).lower():
+                raise UserException(
+                    f"[UserException]: Already joined in the voice chat. If this is a mistake then try to restart the voice chat."
+                )
+            raise UserException(f"[UserException]: {e}")
         except Exception as e:
             raise UserException(f"[UserException]: {e}")
 
         await db.add_active_vc(chat_id, "video" if video else "voice")
         self.audience[chat_id] = {}
         users = await self.vc_participants(chat_id)
-        user_ids = [user.user_id for user in users]
+        user_ids = [user.user_id for user in users] if users else []
         await self.autoend(chat_id, user_ids)
 
     async def join_gc(self, chat_id: int):
