@@ -65,7 +65,7 @@ six==1.16.0
 py-tgcalls==2.2.11
 pyaes==1.6.1
 pycryptodomex==3.20.0
-pyrogram==2.2.17
+kurigram==2.2.17
 websockets==12.0
 
 # Network
@@ -83,3 +83,4 @@ yt-dlp==2024.8.6
 pytz==2024.1
 tzdata==2024.1
 tzlocal==5.2
+
