@@ -9,7 +9,7 @@ attrs==23.2.0
 
 # Web Scraping & Parsing
 beautifulsoup4==4.12.3
-lxml==5.2.2
+lxml==4.9.2
 soupsieve==2.5
 
 # Compression
@@ -83,5 +83,6 @@ yt-dlp==2024.8.6
 pytz==2024.1
 tzdata==2024.1
 tzlocal==5.2
+
 
 
