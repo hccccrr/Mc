@@ -102,17 +102,24 @@ async def play_music(_, message: Message, context: dict):
             return await hell.edit("Invalid YouTube URL.")
         if "playlist" in url:
             await hell.edit("Processing the playlist ...")
-            song_list = await ytube.get_playlist(url)
-            random.shuffle(song_list)
-            context = {
-                "user_id": message.from_user.id,
-                "user_mention": message.from_user.mention,
-            }
-            await player.playlist(hell, context, song_list, video)
+            try:
+                song_list = await ytube.get_playlist(url)
+                if not song_list:
+                    return await hell.edit("Failed to fetch playlist or playlist is empty.")
+                random.shuffle(song_list)
+                context = {
+                    "user_id": message.from_user.id,
+                    "user_mention": message.from_user.mention,
+                }
+                await player.playlist(hell, context, song_list, video)
+            except Exception as e:
+                return await hell.edit(f"**Error fetching playlist:**\n`{e}`")
             return
         try:
             await hell.edit("Searching ...")
             result = await ytube.get_data(url, False)
+            if not result or len(result) == 0:
+                return await hell.edit("No results found. Please try again with a different URL or query.")
         except Exception as e:
             return await hell.edit(f"**Error:**\n`{e}`")
         context = {
@@ -130,12 +137,19 @@ async def play_music(_, message: Message, context: dict):
         return
 
     # if the user sent a query
-    query = message.text.split(" ", 1)[1]
+    try:
+        query = message.text.split(" ", 1)[1]
+    except IndexError:
+        return await hell.edit("Please provide a song name or YouTube URL.")
+    
     try:
         await hell.edit("Searching ...")
         result = await ytube.get_data(query, False)
+        if not result or len(result) == 0:
+            return await hell.edit("No results found. Please try again with a different query.")
     except Exception as e:
         return await hell.edit(f"**Error:**\n`{e}`")
+    
     context = {
         "chat_id": message.chat.id,
         "user_id": message.from_user.id,
