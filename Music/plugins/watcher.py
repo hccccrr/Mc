@@ -4,8 +4,7 @@ import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pyrogram import filters
 from pyrogram.types import Message
-from pytgcalls.types import JoinedGroupCallParticipant, LeftGroupCallParticipant, Update
-from pytgcalls.types.stream import StreamAudioEnded
+from pytgcalls.types import ChatUpdate, StreamEnded, Update
 
 from config import Config
 from Music.core.calls import hellmusic
@@ -68,42 +67,57 @@ async def vc_end(_, msg: Message):
     await msg.continue_propagation()
 
 
-@hellmusic.music.on_kicked()
-@hellmusic.music.on_left()
-async def end_streaming(_, chat_id: int):
-    await hellmusic.leave_vc(chat_id)
-    await db.set_loop(chat_id, 0)
-
-
-@hellmusic.music.on_stream_end()
-async def changed(_, update: Update):
-    if isinstance(update, StreamAudioEnded):
+# PyTgCalls 2.2.8 uses @on_update() decorator instead of individual decorators
+@hellmusic.music.on_update()
+async def handle_vc_updates(client, update: Update):
+    """
+    Handle all voice chat updates in PyTgCalls 2.2.8
+    This includes: StreamEnded, ChatUpdate, etc.
+    """
+    # Handle stream end
+    if isinstance(update, StreamEnded):
         await hellmusic.change_vc(update.chat_id)
+    
+    # Handle participants change
+    elif isinstance(update, ChatUpdate):
+        try:
+            chat_id = update.chat_id
+            audience = hellmusic.audience.get(chat_id)
+            
+            # Get current participants
+            users = update.participants if hasattr(update, 'participants') else []
+            user_ids = [user.user_id for user in users]
+            
+            if not audience:
+                await hellmusic.autoend(chat_id, user_ids)
+            else:
+                # Update audience count based on participant change
+                current_count = len(users)
+                hellmusic.audience[chat_id] = current_count
+                await hellmusic.autoend(chat_id, user_ids)
+        except Exception as e:
+            LOGS.error(f"Error handling chat update: {e}")
 
 
-@hellmusic.music.on_participants_change()
-async def members_change(_, update: Update):
-    if not isinstance(update, JoinedGroupCallParticipant) and not isinstance(
-        update, LeftGroupCallParticipant
-    ):
-        return
-    try:
-        chat_id = update.chat_id
-        audience = hellmusic.audience.get(chat_id)
-        users = await hellmusic.vc_participants(chat_id)
-        user_ids = [user.user_id for user in users]
-        if not audience:
-            await hellmusic.autoend(chat_id, user_ids)
-        else:
-            new = (
-                audience + 1
-                if isinstance(update, JoinedGroupCallParticipant)
-                else audience - 1
-            )
-            hellmusic.audience[chat_id] = new
-            await hellmusic.autoend(chat_id, user_ids)
-    except:
-        return
+# Alternative: If you need separate handling for kicked/left events
+@hellmusic.music.on_update()
+async def handle_vc_left(client, update: Update):
+    """
+    Handle when bot is kicked or leaves voice chat
+    """
+    if isinstance(update, ChatUpdate):
+        # Check if bot left the call
+        try:
+            chat_id = update.chat_id
+            participants = update.participants if hasattr(update, 'participants') else []
+            bot_in_call = any(p.user_id == hellbot.user.id for p in participants)
+            
+            if not bot_in_call:
+                # Bot was kicked or left
+                await hellmusic.leave_vc(chat_id)
+                await db.set_loop(chat_id, 0)
+        except:
+            pass
 
 
 async def update_played():
