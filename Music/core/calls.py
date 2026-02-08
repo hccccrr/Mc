@@ -52,16 +52,6 @@ class HellMusic(PyTgCalls):
     def __init__(self):
         self.music = PyTgCalls(hellbot.user)
         self.audience = {}
-        
-        # Register handlers for PyTgCalls 2.2.8
-        @self.music.on_update()
-        async def on_update_handler(client: PyTgCalls, update: Update):
-            if isinstance(update, StreamEnded):
-                await self.change_vc(update.chat_id)
-            elif isinstance(update, ChatUpdate):
-                users = update.participants
-                user_ids = [user.user_id for user in users]
-                await self.autoend(update.chat_id, user_ids)
 
     async def autoend(self, chat_id: int, users: list):
         autoend = await db.get_autoend()
