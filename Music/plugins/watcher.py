@@ -172,7 +172,8 @@ async def leaderboard():
         "username": hellbot.app.username,
         "client": hellbot.app,
     }
-    text = await leaders.generate(context)
+    # Generate combined leaderboard (both songs and messages)
+    text = await leaders.generate(context, "both")
     btns = Buttons.close_markup()
     await leaders.broadcast(hellbot, text, btns)
 
