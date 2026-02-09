@@ -30,12 +30,13 @@ class Leaderboard:
             mins = 0
         return mins
 
-    async def get_top_10(self) -> list:
+    async def get_top_10_songs(self) -> list:
+        """Get top 10 users by songs played"""
         users = await db.get_all_users()
         all_guys = []
         async for user in users:
             id = int(user["user_id"])
-            songs = int(user["songs_played"])
+            songs = int(user.get("songs_played", 0))
             user_name = user["user_name"]
             context = {"id": id, "songs": songs, "user": user_name}
             all_guys.append(context)
@@ -43,17 +44,60 @@ class Leaderboard:
         top_10 = all_guys[:10]
         return top_10
 
-    async def generate(self, bot_details: dict) -> str:
+    async def get_top_10_messages(self) -> list:
+        """Get top 10 users by message count"""
+        users = await db.get_all_users()
+        all_guys = []
+        async for user in users:
+            id = int(user["user_id"])
+            messages = int(user.get("messages_count", 0))
+            user_name = user["user_name"]
+            context = {"id": id, "messages": messages, "user": user_name}
+            all_guys.append(context)
+        all_guys = sorted(all_guys, key=lambda x: x["messages"], reverse=True)
+        top_10 = all_guys[:10]
+        return top_10
+
+    async def generate_songs(self, bot_details: dict) -> str:
+        """Generate leaderboard for songs"""
         index = 0
-        top_10 = await self.get_top_10()
-        text = f"**🧡 Top 10 Users of {bot_details['mention']}**\n\n"
-        hellbot = bot_details["client"]
+        top_10 = await self.get_top_10_songs()
+        text = f"**🎵 Top 10 Music Lovers of {bot_details['mention']}**\n\n"
         for top in top_10:
             index += 1
             link = f"https://t.me/{bot_details['username']}?start=user_{top['id']}"
-            text += f"**⤷ {'0' if index <= 9 else ''}{index}:** [{top['user']}]({link})\n"
-        text += "\n**🧡 Enjoy Streaming! Have Fun!**"
+            text += f"**⤷ {'0' if index <= 9 else ''}{index}:** [{top['user']}]({link}) - **{top['songs']}** songs\n"
+        text += "\n**🎧 Keep streaming! Enjoy the music!**"
         return text
+
+    async def generate_messages(self, bot_details: dict) -> str:
+        """Generate leaderboard for messages"""
+        index = 0
+        top_10 = await self.get_top_10_messages()
+        text = f"**💬 Top 10 Active Chatters of {bot_details['mention']}**\n\n"
+        for top in top_10:
+            index += 1
+            link = f"https://t.me/{bot_details['username']}?start=user_{top['id']}"
+            text += f"**⤷ {'0' if index <= 9 else ''}{index}:** [{top['user']}]({link}) - **{top['messages']}** messages\n"
+        text += "\n**💬 Keep chatting! Stay active!**"
+        return text
+
+    async def generate(self, bot_details: dict, leaderboard_type: str = "both") -> str:
+        """
+        Generate leaderboard text
+        leaderboard_type: 'songs', 'messages', or 'both'
+        """
+        if leaderboard_type == "songs":
+            return await self.generate_songs(bot_details)
+        elif leaderboard_type == "messages":
+            return await self.generate_messages(bot_details)
+        else:  # both
+            songs_text = await self.generate_songs(bot_details)
+            messages_text = await self.generate_messages(bot_details)
+            
+            # Combine both leaderboards
+            combined_text = f"{songs_text}\n\n{'─' * 35}\n\n{messages_text}"
+            return combined_text
 
     async def broadcast(self, hellbot, text, buttons):
         start = time.time()
@@ -103,3 +147,4 @@ class Leaderboard:
 
 
 leaders = Leaderboard()
+                
