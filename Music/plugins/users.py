@@ -29,7 +29,8 @@ async def user_profile(_, message: Message):
     context = {
         "id": message.from_user.id,
         "mention": message.from_user.mention,
-        "songs_played": user["songs_played"],
+        "songs_played": user.get("songs_played", 0),
+        "messages_count": user.get("messages_count", 0),
         "join_date": user["join_date"],
         "user_type": await get_user_type(message.chat.id, message.from_user.id),
     }
@@ -81,10 +82,54 @@ async def topusers(_, message: Message):
         "username": hellbot.app.username,
         "client": hellbot.app,
     }
-    text = await leaders.generate(context)
+    # Show both leaderboards by default
+    text = await leaders.generate(context, "both")
     btns = Buttons.close_markup()
     await hell.edit_text(
         text,
         disable_web_page_preview=True,
         reply_markup=InlineKeyboardMarkup(btns),
     )
+
+
+@hellbot.app.on_message(
+    filters.command(["topchatters", "activechatters"]) & filters.group & ~Config.BANNED_USERS
+)
+@UserWrapper
+async def top_chatters(_, message: Message):
+    hell = await message.reply_text("Just a sec... fetching top chatters")
+    context = {
+        "mention": hellbot.app.mention,
+        "username": hellbot.app.username,
+        "client": hellbot.app,
+    }
+    # Show only message leaderboard
+    text = await leaders.generate(context, "messages")
+    btns = Buttons.close_markup()
+    await hell.edit_text(
+        text,
+        disable_web_page_preview=True,
+        reply_markup=InlineKeyboardMarkup(btns),
+    )
+
+
+@hellbot.app.on_message(
+    filters.command(["topmusic", "topsongs"]) & filters.group & ~Config.BANNED_USERS
+)
+@UserWrapper
+async def top_music(_, message: Message):
+    hell = await message.reply_text("Just a sec... fetching top music lovers")
+    context = {
+        "mention": hellbot.app.mention,
+        "username": hellbot.app.username,
+        "client": hellbot.app,
+    }
+    # Show only songs leaderboard
+    text = await leaders.generate(context, "songs")
+    btns = Buttons.close_markup()
+    await hell.edit_text(
+        text,
+        disable_web_page_preview=True,
+        reply_markup=InlineKeyboardMarkup(btns),
+    )
+    
