@@ -47,6 +47,9 @@ class Database(object):
             "user_name": user_name,
             "join_date": datetime.datetime.now().strftime("%d-%m-%Y %H:%M"),
             "songs_played": 0,
+            "messages_count": 0,
+            "last_msg_time": [],
+            "spam_cooldown_until": None,
         }
         await self.users.insert_one(context)
 
@@ -70,10 +73,102 @@ class Database(object):
         return count
 
     async def update_user(self, user_id: int, key: str, value):
-        if key == "songs_played":
+        if key == "songs_played" or key == "messages_count":
             prev = await self.users.find_one({"user_id": user_id})
-            value = prev[key] + value
+            if prev:
+                value = prev.get(key, 0) + value
         await self.users.update_one({"user_id": user_id}, {"$set": {key: value}})
+
+    # Message tracking with anti-spam #
+    async def track_message(self, user_id: int, user_name: str) -> bool:
+        """
+        Track user messages and implement anti-spam
+        Returns True if message should be counted, False if user is in cooldown
+        """
+        # Check if user exists
+        if not await self.is_user_exist(user_id):
+            await self.add_user(user_id, user_name)
+        
+        user = await self.get_user(user_id)
+        current_time = datetime.datetime.now()
+        
+        # Check if user is in spam cooldown
+        if user.get("spam_cooldown_until"):
+            cooldown_until = user["spam_cooldown_until"]
+            if isinstance(cooldown_until, str):
+                cooldown_until = datetime.datetime.strptime(cooldown_until, "%Y-%m-%d %H:%M:%S")
+            
+            if current_time < cooldown_until:
+                # User still in cooldown
+                return False
+            else:
+                # Cooldown expired, reset
+                await self.users.update_one(
+                    {"user_id": user_id},
+                    {"$set": {
+                        "spam_cooldown_until": None,
+                        "last_msg_time": []
+                    }}
+                )
+        
+        # Get last message times (keep only last 3 seconds)
+        last_msg_time = user.get("last_msg_time", [])
+        if isinstance(last_msg_time, list):
+            # Convert string timestamps to datetime
+            last_msg_time = [
+                datetime.datetime.strptime(t, "%Y-%m-%d %H:%M:%S.%f") 
+                if isinstance(t, str) else t 
+                for t in last_msg_time
+            ]
+        else:
+            last_msg_time = []
+        
+        # Filter messages from last 3 seconds
+        three_seconds_ago = current_time - datetime.timedelta(seconds=3)
+        recent_messages = [t for t in last_msg_time if t > three_seconds_ago]
+        
+        # Add current message time
+        recent_messages.append(current_time)
+        
+        # Check for spam (5+ messages in 3 seconds)
+        if len(recent_messages) >= 5:
+            # Apply 20 minute cooldown
+            cooldown_until = current_time + datetime.timedelta(minutes=20)
+            await self.users.update_one(
+                {"user_id": user_id},
+                {"$set": {
+                    "spam_cooldown_until": cooldown_until.strftime("%Y-%m-%d %H:%M:%S"),
+                    "last_msg_time": []
+                }}
+            )
+            return False
+        
+        # Update last message times
+        recent_messages_str = [t.strftime("%Y-%m-%d %H:%M:%S.%f") for t in recent_messages]
+        await self.users.update_one(
+            {"user_id": user_id},
+            {"$set": {"last_msg_time": recent_messages_str}}
+        )
+        
+        # Increment message count
+        await self.update_user(user_id, "messages_count", 1)
+        return True
+
+    async def get_spam_cooldown(self, user_id: int):
+        """Get remaining cooldown time for user"""
+        user = await self.get_user(user_id)
+        if not user or not user.get("spam_cooldown_until"):
+            return None
+        
+        cooldown_until = user["spam_cooldown_until"]
+        if isinstance(cooldown_until, str):
+            cooldown_until = datetime.datetime.strptime(cooldown_until, "%Y-%m-%d %H:%M:%S")
+        
+        current_time = datetime.datetime.now()
+        if current_time < cooldown_until:
+            remaining = cooldown_until - current_time
+            return remaining
+        return None
 
     # chat db #
     async def add_chat(self, chat_id: int):
@@ -357,3 +452,4 @@ class Database(object):
 
 
 db = Database()
+        
