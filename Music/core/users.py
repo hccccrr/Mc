@@ -1,8 +1,3 @@
-"""
-HellMusic V3 - User Management
-Modern user data initialization system
-"""
-
 from config import Config
 
 from .database import db
