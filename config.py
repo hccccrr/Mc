@@ -1,7 +1,6 @@
 from os import getenv
 
 from dotenv import load_dotenv
-from pyrogram import filters
 
 load_dotenv()
 
@@ -11,7 +10,7 @@ class Config(object):
     API_ID = int(getenv("API_ID", 0))                  # get from my.telegram.org
     BOT_TOKEN = getenv("BOT_TOKEN", None)              # get from @BotFather
     DATABASE_URL = getenv("DATABASE_URL", None)        # from https://cloud.mongodb.com/
-    HELLBOT_SESSION = getenv("HELLBOT_SESSION", None)  # enter your session string here
+    STRING_SESSION = getenv("STRING_SESSION", None)    # enter your Telethon session string here
     LOGGER_ID = int(getenv("LOGGER_ID", 0))            # make a channel and get its ID
     OWNER_ID = getenv("OWNER_ID", "")                  # enter your id here
 
@@ -35,16 +34,16 @@ class Config(object):
 
 
     # do not edit these variables
-    BANNED_USERS = filters.user()
+    BANNED_USERS = set()  # Changed from filters.user() to set()
     CACHE = {}
     CACHE_DIR = "./cache/"
     DELETE_DICT = {}
     DWL_DIR = "./downloads/"
-    GOD_USERS = filters.user()
+    GOD_USERS = set()  # Changed from filters.user() to set()
     PLAYER_CACHE = {}
     QUEUE_CACHE =  {}
     SONG_CACHE = {}
-    SUDO_USERS = filters.user()
+    SUDO_USERS = set()  # Changed from filters.user() to set()
 
 
 # get all config variables in a list
