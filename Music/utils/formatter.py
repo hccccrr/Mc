@@ -1,9 +1,8 @@
 from typing import Union
 
-from pyrogram.types import Message
-
 
 def secs_to_mins(seconds):
+    """Convert seconds to formatted time string"""
     if seconds is not None:
         seconds = int(seconds)
         d, h, m, s = (
