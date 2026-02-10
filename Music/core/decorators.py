@@ -1,13 +1,9 @@
-"""
-HellMusic V3 - Decorators
-Modern permission and authorization decorators
-"""
-
 from functools import wraps
 from typing import Callable
 
-from pyrogram import Client
-from pyrogram.types import Message
+from telethon import TelegramClient
+from telethon.tl.custom import Message
+from telethon.tl.types import Channel, Chat
 
 from config import Config
 from Music.utils.admins import get_auth_users, get_user_rights
@@ -26,12 +22,12 @@ def check_mode(func: Callable) -> Callable:
     Only allow sudo users if private mode is on
     """
     @wraps(func)
-    async def decorated(client: Client, message: Message):
-        user_id = message.from_user.id
+    async def decorated(client: TelegramClient, message: Message):
+        user_id = message.sender_id
         
         if str(Config.PRIVATE_MODE).lower() in ON_MODE:
             if user_id not in Config.SUDO_USERS:
-                return await message.reply_text(
+                return await message.reply(
                     "**🔒 Private Mode Enabled**\n\n"
                     "This bot is in private mode and only authorized users can use it."
                 )
@@ -47,22 +43,24 @@ def AdminWrapper(func: Callable) -> Callable:
     Requires manage voice chats permission
     """
     @wraps(func)
-    async def decorated(client: Client, message: Message):
+    async def decorated(client: TelegramClient, message: Message):
         # Delete command message
         try:
             await message.delete()
         except Exception:
             pass
         
-        # Check for anonymous admin
-        if message.sender_chat:
-            return await message.reply_text(
-                "**❌ Anonymous Admin Detected**\n\n"
-                "You're an anonymous admin. Please revert to your personal account to use this command."
-            )
+        # Check for anonymous admin (sender_id will be channel/chat id)
+        if message.sender_id != message.from_id.user_id if hasattr(message.from_id, 'user_id') else True:
+            # This is a channel/anonymous post
+            if isinstance(message.peer_id, (Channel, Chat)):
+                return await message.reply(
+                    "**❌ Anonymous Admin Detected**\n\n"
+                    "You're an anonymous admin. Please revert to your personal account to use this command."
+                )
         
-        chat_id = message.chat.id
-        user_id = message.from_user.id
+        chat_id = message.chat_id
+        user_id = message.sender_id
         
         # Bypass for sudo users
         if user_id in Config.SUDO_USERS:
@@ -71,7 +69,7 @@ def AdminWrapper(func: Callable) -> Callable:
         # Check admin rights
         has_rights = await get_user_rights(chat_id, user_id)
         if not has_rights:
-            return await message.reply_text(
+            return await message.reply(
                 "**❌ Insufficient Permissions**\n\n"
                 "You need to be an admin with **Manage Voice Chats** permission to use this command."
             )
@@ -87,7 +85,7 @@ def AuthWrapper(func: Callable) -> Callable:
     Allows admins and authorized users
     """
     @wraps(func)
-    async def decorated(client: Client, message: Message):
+    async def decorated(client: TelegramClient, message: Message):
         # Delete command message
         try:
             await message.delete()
@@ -95,18 +93,19 @@ def AuthWrapper(func: Callable) -> Callable:
             pass
         
         # Check for anonymous admin
-        if message.sender_chat:
-            return await message.reply_text(
-                "**❌ Anonymous Admin Detected**\n\n"
-                "You're an anonymous admin. Please revert to your personal account to use this command."
-            )
+        if message.sender_id != message.from_id.user_id if hasattr(message.from_id, 'user_id') else True:
+            if isinstance(message.peer_id, (Channel, Chat)):
+                return await message.reply(
+                    "**❌ Anonymous Admin Detected**\n\n"
+                    "You're an anonymous admin. Please revert to your personal account to use this command."
+                )
         
-        chat_id = message.chat.id
-        user_id = message.from_user.id
+        chat_id = message.chat_id
+        user_id = message.sender_id
         
         # Check if VC is active
         if not await db.is_active_vc(chat_id):
-            return await message.reply_text(
+            return await message.reply(
                 "**❌ No Active Stream**\n\n"
                 "Nothing is currently playing in the voice chat!"
             )
@@ -126,14 +125,14 @@ def AuthWrapper(func: Callable) -> Callable:
                 raise HellBotException(f"[AuthError]: {e}")
             
             if not admins:
-                return await message.reply_text(
+                return await message.reply(
                     "**⚠️ Admin List Outdated**\n\n"
                     "Need to refresh the admin list.\n"
                     "Use: `/reload`"
                 )
             
             if user_id not in admins:
-                return await message.reply_text(
+                return await message.reply(
                     "**❌ Unauthorized**\n\n"
                     "This command is only for authorized users and admins!"
                 )
@@ -149,7 +148,7 @@ def UserWrapper(func: Callable) -> Callable:
     Allows all users except anonymous admins
     """
     @wraps(func)
-    async def decorated(client: Client, message: Message):
+    async def decorated(client: TelegramClient, message: Message):
         # Delete command message
         try:
             await message.delete()
@@ -157,11 +156,12 @@ def UserWrapper(func: Callable) -> Callable:
             pass
         
         # Check for anonymous admin
-        if message.sender_chat:
-            return await message.reply_text(
-                "**❌ Anonymous Admin Detected**\n\n"
-                "You're an anonymous admin. Please revert to your personal account to use this command."
-            )
+        if message.sender_id != message.from_id.user_id if hasattr(message.from_id, 'user_id') else True:
+            if isinstance(message.peer_id, (Channel, Chat)):
+                return await message.reply(
+                    "**❌ Anonymous Admin Detected**\n\n"
+                    "You're an anonymous admin. Please revert to your personal account to use this command."
+                )
         
         return await func(client, message)
     
@@ -174,7 +174,7 @@ def PlayWrapper(func: Callable) -> Callable:
     Validates and prepares playback context
     """
     @wraps(func)
-    async def decorated(client: Client, message: Message):
+    async def decorated(client: TelegramClient, message: Message):
         # Delete command message
         try:
             await message.delete()
@@ -182,11 +182,12 @@ def PlayWrapper(func: Callable) -> Callable:
             pass
         
         # Check for anonymous admin
-        if message.sender_chat:
-            return await message.reply_text(
-                "**❌ Anonymous Admin Detected**\n\n"
-                "You're an anonymous admin. Please revert to your personal account to use this command."
-            )
+        if message.sender_id != message.from_id.user_id if hasattr(message.from_id, 'user_id') else True:
+            if isinstance(message.peer_id, (Channel, Chat)):
+                return await message.reply(
+                    "**❌ Anonymous Admin Detected**\n\n"
+                    "You're an anonymous admin. Please revert to your personal account to use this command."
+                )
         
         # Initialize flags
         video = False
@@ -199,22 +200,22 @@ def PlayWrapper(func: Callable) -> Callable:
         url = await player.get_url(message)
         
         # Check for replied media
-        if message.reply_to_message:
-            tg_audio = (
-                message.reply_to_message.audio 
-                or message.reply_to_message.voice 
-                or None
-            )
-            tg_video = (
-                message.reply_to_message.video
-                or message.reply_to_message.document
-                or None
-            )
+        if message.is_reply:
+            replied_msg = await message.get_reply_message()
+            if replied_msg:
+                # Check for audio/voice
+                if replied_msg.audio or replied_msg.voice:
+                    tg_audio = replied_msg.audio or replied_msg.voice
+                # Check for video/document
+                if replied_msg.video or replied_msg.document:
+                    tg_video = replied_msg.video or replied_msg.document
         
         # Validate input
         if not tg_audio and not tg_video and not url:
-            if len(message.command) < 2:
-                return await message.reply_text(
+            # Get command from message text
+            cmd_parts = message.text.split() if message.text else []
+            if len(cmd_parts) < 2:
+                return await message.reply(
                     "**❌ Invalid Input**\n\n"
                     "**Usage:**\n"
                     "• Reply to an audio/video file\n"
@@ -226,7 +227,11 @@ def PlayWrapper(func: Callable) -> Callable:
                 )
         
         # Parse command flags
-        command = message.command[0].lower()
+        cmd_parts = message.text.split() if message.text else []
+        command = cmd_parts[0].lower().replace("/", "") if cmd_parts else ""
+        
+        # Store command in message object for later use
+        message.command = cmd_parts
         
         if command.startswith("v"):  # vplay, vfplay
             video = True
@@ -260,11 +265,11 @@ def SudoWrapper(func: Callable) -> Callable:
     Only allows sudo users
     """
     @wraps(func)
-    async def decorated(client: Client, message: Message):
-        user_id = message.from_user.id
+    async def decorated(client: TelegramClient, message: Message):
+        user_id = message.sender_id
         
         if user_id not in Config.SUDO_USERS:
-            return await message.reply_text(
+            return await message.reply(
                 "**❌ Unauthorized**\n\n"
                 "This command is only for sudo users!"
             )
@@ -280,11 +285,11 @@ def OwnerWrapper(func: Callable) -> Callable:
     Only allows owner users
     """
     @wraps(func)
-    async def decorated(client: Client, message: Message):
-        user_id = message.from_user.id
+    async def decorated(client: TelegramClient, message: Message):
+        user_id = message.sender_id
         
         if user_id not in Config.GOD_USERS:
-            return await message.reply_text(
+            return await message.reply(
                 "**❌ Unauthorized**\n\n"
                 "This command is only for the bot owner!"
             )
