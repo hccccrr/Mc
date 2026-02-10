@@ -5,8 +5,7 @@ import time
 import traceback
 
 import aiofiles
-from pyrogram.errors import FloodWait, PeerIdInvalid
-from pyrogram.types import InlineKeyboardMarkup
+from telethon.errors import FloodWaitError, PeerIdInvalidError
 
 from config import Config
 from Music.core.database import db
@@ -129,22 +128,22 @@ class Leaderboard:
         os.remove(self.file_name)
 
     async def send_message(self, hellbot, buttons, chat: int, text: str):
+        """Send message to chat with error handling"""
         try:
             await hellbot.send_message(
                 chat,
                 text,
-                reply_markup=InlineKeyboardMarkup(buttons),
-                disable_web_page_preview=True,
+                buttons=buttons,
+                link_preview=False,
             )
             return 1, None
-        except FloodWait as e:
-            await asyncio.sleep(e.x)
-            await self.send_message(hellbot, buttons, chat, text)
-        except PeerIdInvalid:
+        except FloodWaitError as e:
+            await asyncio.sleep(e.seconds)
+            return await self.send_message(hellbot, buttons, chat, text)
+        except PeerIdInvalidError:
             return 2, f"{chat} -:- chat id invalid\n"
         except Exception:
             return 3, f"{chat} -:- {traceback.format_exc()}\n"
 
 
 leaders = Leaderboard()
-                
