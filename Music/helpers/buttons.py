@@ -163,6 +163,10 @@ class MakeButtons:
                 self.ikb(text="⊹ Skip", callback_data=f"ctrl|skip|{chat_id}"),
             ],
             [
+                self.ikb(text="🎸 Bass", callback_data=f"ctrl|bass|{chat_id}"),
+                self.ikb(text="⚡ Speed", callback_data=f"ctrl|speed|{chat_id}"),
+            ],
+            [
                 self.ikb(text="🔙", callback_data=f"player|{video_id}|{chat_id}"),
                 self.ikb(text="🗑", callback_data="close"),
             ],
@@ -285,3 +289,4 @@ class MakeButtons:
 
 
 Buttons = MakeButtons()
+                                                                          
