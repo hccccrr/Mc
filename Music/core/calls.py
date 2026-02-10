@@ -34,6 +34,7 @@ from Music.utils.exceptions import (
 from Music.utils.queue import Queue
 from Music.utils.thumbnail import thumb
 from Music.utils.youtube import ytube
+from Music.utils import formatter
 
 from .clients import hellbot
 from .database import db
