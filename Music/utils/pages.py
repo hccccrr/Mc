@@ -1,4 +1,5 @@
-from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InputMediaPhoto, Message
+from telethon.tl.custom import Message
+from telethon.tl.types import InputMediaPhotoExternal
 
 from config import Config
 from Music.core.clients import hellbot
@@ -11,37 +12,53 @@ class Pages:
     def __init__(self):
         pass
 
-    async def song_page(self, message: Message, rand_key: str, key: int):
-        m = message.message if isinstance(message, CallbackQuery) else message
+    async def song_page(self, message, rand_key: str, key: int):
+        """Display song page with navigation"""
+        # Get message object
+        if hasattr(message, 'message'):
+            m = message.message  # From callback query
+        else:
+            m = message  # Direct message
+        
         if Config.SONG_CACHE[rand_key]:
             all_tracks = Config.SONG_CACHE[rand_key]
             btns = Buttons.song_markup(rand_key, all_tracks[key]["link"], key)
             cap = f"__({key+1}/{len(all_tracks)})__ **Song Downloader:**\n\n"
             cap += f"**• Title:** `{all_tracks[key]['title']}`\n\n"
-            cap += f"🎶 {hellbot.app.mention}"
-            await m.edit_media(
-                InputMediaPhoto(
-                    all_tracks[key]["thumbnail"],
-                    caption=cap,
-                ),
-                reply_markup=InlineKeyboardMarkup(btns),
+            cap += f"🎶 @{hellbot.app.me.username}"
+            
+            # Edit media with new photo and caption
+            await m.edit(
+                cap,
+                file=all_tracks[key]["thumbnail"],
+                buttons=btns,
             )
         else:
             await m.delete()
-            return await m.reply_text("Query timed out! Please start the query again.")
+            return await hellbot.app.send_message(
+                m.chat_id, 
+                "Query timed out! Please start the query again."
+            )
 
     async def activevc_page(
         self,
-        message: Message or CallbackQuery,
+        message,
         collection: list,
         page: int = 0,
         index: int = 0,
         edit: bool = False,
     ):
-        m = message.message if isinstance(message, CallbackQuery) else message
+        """Display active voice chats page"""
+        # Get message object
+        if hasattr(message, 'message'):
+            m = message.message
+        else:
+            m = message
+        
         grouped, total = formatter.group_the_list(collection)
-        text = f"__({page+1}/{len(grouped)})__ **{hellbot.app.mention} Active Voice Chats:** __{total} chats__\n\n"
+        text = f"__({page+1}/{len(grouped)})__ **@{hellbot.app.me.username} Active Voice Chats:** __{total} chats__\n\n"
         btns = Buttons.active_vc_markup(len(grouped), page)
+        
         try:
             for active in grouped[int(page)]:
                 index += 1
@@ -58,25 +75,37 @@ class Pages:
                 text += f"    **Listeners:** __{active['participants']}__\n"
                 text += f"    **Playing:** __{active['playing']}__\n"
                 text += f"    **Since:** __{active['active_since']}__\n\n"
+        
         if edit:
-            await m.edit_text(text, reply_markup=InlineKeyboardMarkup(btns))
+            await m.edit(text, buttons=btns)
         else:
-            await m.reply_text(text, reply_markup=InlineKeyboardMarkup(btns))
+            await m.reply(text, buttons=btns)
 
     async def authusers_page(
         self,
-        message: Message or CallbackQuery,
+        message,
         rand_key: str,
         page: int = 0,
         index: int = 0,
         edit: bool = False,
     ):
-        m = message.message if isinstance(message, CallbackQuery) else message
+        """Display authorized users page"""
+        # Get message object
+        if hasattr(message, 'message'):
+            m = message.message
+        else:
+            m = message
+        
         collection = Config.CACHE[rand_key]
         grouped, total = formatter.group_the_list(collection, 6)
-        chat = message.chat.title or "Unknown Chat"
-        text = f"__({page+1}/{len(grouped)})__ **Authorized Users in {chat}:**\n    >> __{total} users__\n\n"
+        
+        # Get chat title
+        chat = await hellbot.app.get_entity(m.chat_id)
+        chat_title = chat.title if hasattr(chat, 'title') else "Unknown Chat"
+        
+        text = f"__({page+1}/{len(grouped)})__ **Authorized Users in {chat_title}:**\n    >> __{total} users__\n\n"
         btns = Buttons.authusers_markup(len(grouped), page, rand_key)
+        
         try:
             for auth in grouped[int(page)]:
                 index += 1
@@ -94,14 +123,15 @@ class Pages:
                     f"    **Auth By:** {auth['admin_name']} (`{auth['admin_id']}`)\n"
                 )
                 text += f"    **Since:** __{auth['auth_date']}__\n\n"
+        
         if edit:
-            await m.edit_text(text, reply_markup=InlineKeyboardMarkup(btns))
+            await m.edit(text, buttons=btns)
         else:
-            await m.reply_text(text, reply_markup=InlineKeyboardMarkup(btns))
+            await m.reply(text, buttons=btns)
 
     async def favorite_page(
         self,
-        message: Message or CallbackQuery,
+        message,
         collection: list,
         user_id: int,
         mention: str,
@@ -110,31 +140,43 @@ class Pages:
         edit: bool = False,
         delete: bool = False,
     ):
-        m = message.message if isinstance(message, CallbackQuery) else message
+        """Display favorite tracks page"""
+        # Get message object
+        if hasattr(message, 'message'):
+            m = message.message
+        else:
+            m = message
+        
         grouped, total = formatter.group_the_list(collection, 5)
         text = f"__({page+1}/{len(grouped)})__ {mention} **favorites:** __{total} tracks__\n\n"
         btns, final = await Buttons.favorite_markup(
             grouped, user_id, page, index, db, delete
         )
+        
         if edit:
-            await m.edit_text(f"{text}{final}", reply_markup=InlineKeyboardMarkup(btns))
+            await m.edit(f"{text}{final}", buttons=btns)
         else:
-            await m.reply_text(
-                f"{text}{final}", reply_markup=InlineKeyboardMarkup(btns)
-            )
+            await m.reply(f"{text}{final}", buttons=btns)
 
     async def queue_page(
         self,
-        message: Message or CallbackQuery,
+        message,
         collection: list,
         page: int = 0,
         index: int = 0,
         edit: bool = False,
     ):
-        m = message.message if isinstance(message, CallbackQuery) else message
+        """Display queue page"""
+        # Get message object
+        if hasattr(message, 'message'):
+            m = message.message
+        else:
+            m = message
+        
         grouped, total = formatter.group_the_list(collection, 5)
         text = f"__({page+1}/{len(grouped)})__ **In Queue:** __{total} tracks__\n\n"
         btns = Buttons.queue_markup(len(grouped), page)
+        
         try:
             for que in grouped[page]:
                 index += 1
@@ -143,11 +185,12 @@ class Pages:
                 text += f"    **Requested By:** {que['user']}\n"
                 text += f"    **Duration:** __{que['duration']}__\n\n"
         except IndexError:
-            return await m.edit_text("**No more tracks in queue!**")
+            return await m.edit("**No more tracks in queue!**")
+        
         if edit:
-            await m.edit_text(text, reply_markup=InlineKeyboardMarkup(btns))
+            await m.edit(text, buttons=btns)
         else:
-            await m.reply_text(text, reply_markup=InlineKeyboardMarkup(btns))
+            await m.reply(text, buttons=btns)
 
 
 MakePages = Pages()
