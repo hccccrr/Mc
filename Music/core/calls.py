@@ -2,15 +2,17 @@ import datetime
 import os
 
 from ntgcalls import TelegramServerError
-from pyrogram import Client
-from pyrogram.enums import ChatMemberStatus
-from pyrogram.errors import (
-    ChatAdminRequired,
-    FloodWait,
-    UserAlreadyParticipant,
-    UserNotParticipant,
+from telethon import TelegramClient
+from telethon.errors import (
+    ChatAdminRequiredError,
+    FloodWaitError,
+    UserAlreadyParticipantError,
+    UserNotParticipantError,
 )
-from pyrogram.types import InlineKeyboardMarkup
+from telethon.tl.types import (
+    InputMessagesFilterPhotos,
+    KeyboardButtonRow,
+)
 from pytgcalls import PyTgCalls
 from pytgcalls.exceptions import NoActiveGroupCall
 from pytgcalls.types import (
@@ -58,7 +60,7 @@ class HellMusic(PyTgCalls):
         autoend = await db.get_autoend()
         if autoend:
             if len(users) == 1:
-                get = await hellbot.app.get_users(users[0])
+                get = await hellbot.app.get_entity(users[0])
                 if get.id == hellbot.user.id:
                     db.inactive[chat_id] = datetime.datetime.now() + datetime.timedelta(
                         minutes=5
@@ -76,18 +78,12 @@ class HellMusic(PyTgCalls):
             pass
 
     async def start(self):
-        LOGS.info(
-            "\x3e\x3e\x20\x42\x6f\x6f\x74\x69\x6e\x67\x20\x50\x79\x54\x67\x43\x61\x6c\x6c\x73\x20\x43\x6c\x69\x65\x6e\x74\x2e\x2e\x2e"
-        )
-        if Config.HELLBOT_SESSION:
+        LOGS.info(">> Booting PyTgCalls Client...")
+        if Config.STRING_SESSION:
             await self.music.start()
-            LOGS.info(
-                "\x3e\x3e\x20\x42\x6f\x6f\x74\x65\x64\x20\x50\x79\x54\x67\x43\x61\x6c\x6c\x73\x20\x43\x6c\x69\x65\x6e\x74\x21"
-            )
+            LOGS.info(">> Booted PyTgCalls Client!")
         else:
-            LOGS.error(
-                "\x3e\x3e\x20\x50\x79\x54\x67\x43\x61\x6c\x6c\x73\x20\x43\x6c\x69\x65\x6e\x74\x20\x6e\x6f\x74\x20\x62\x6f\x6f\x74\x65\x64\x21"
-            )
+            LOGS.error(">> PyTgCalls Client not booted!")
             quit(1)
 
     async def ping(self):
@@ -218,78 +214,23 @@ class HellMusic(PyTgCalls):
             LOGS.error(f"Error applying effects: {e}")
             return False
 
-    async def seek_vc(self, context: dict):
-        chat_id, file_path, duration, to_seek, video = context.values()
-        
-        # Get current audio effects
-        effects = await db.get_audio_effects(chat_id)
-        bass_boost = effects.get("bass_boost", 0)
-        speed = effects.get("speed", 1.0)
-        
-        # Get FFmpeg parameters with effects and seek
-        ffmpeg_params = self.get_ffmpeg_parameters(bass_boost, speed, to_seek, duration)
-        
-        # Create MediaStream for PyTgCalls 2.2.8
-        if video:
-            stream = MediaStream(
-                file_path,
-                audio_parameters=AudioQuality.MEDIUM,
-                video_parameters=VideoQuality.SD_480p,
-                ffmpeg_parameters=ffmpeg_params,
-            )
-        else:
-            stream = MediaStream(
-                file_path,
-                audio_parameters=AudioQuality.MEDIUM,
-                ffmpeg_parameters=ffmpeg_params,
-            )
-        
-        # In PyTgCalls 2.2.8+, use play() to change stream
-        await self.music.play(chat_id, stream)
-
-    async def invited_vc(self, chat_id: int):
-        try:
-            await hellbot.app.send_message(
-                chat_id, "The Bot will join vc only when you give something to play!"
-            )
-        except:
-            return
-
-    async def replay_vc(self, chat_id: int, file_path: str, video: bool = False):
-        # Get current audio effects and apply them on replay
-        effects = await db.get_audio_effects(chat_id)
-        bass_boost = effects.get("bass_boost", 0)
-        speed = effects.get("speed", 1.0)
-        
-        # Only apply effects if they're not default (user has set them)
-        if bass_boost != 0 or speed != 1.0:
-            ffmpeg_params = self.get_ffmpeg_parameters(bass_boost, speed)
-        else:
-            ffmpeg_params = None
-        
-        # Create MediaStream for PyTgCalls 2.2.8
-        if video:
-            stream = MediaStream(
-                file_path,
-                audio_parameters=AudioQuality.MEDIUM,
-                video_parameters=VideoQuality.SD_480p,
-                ffmpeg_parameters=ffmpeg_params,
-            )
-        else:
-            stream = MediaStream(
-                file_path,
-                audio_parameters=AudioQuality.MEDIUM,
-                ffmpeg_parameters=ffmpeg_params,
-            )
-        
-        # In PyTgCalls 2.2.8+, use play() to change stream
-        await self.music.play(chat_id, stream)
+    @hellmusic.music.on_update()
+    async def on_update(self, update: Update):
+        """Handle PyTgCalls updates"""
+        if isinstance(update, ChatUpdate):
+            chat_id = update.chat_id
+            
+            # Handle stream ended
+            if isinstance(update, StreamEnded):
+                await self.change_vc(chat_id)
 
     async def change_vc(self, chat_id: int):
+        """Change to next song in queue or leave VC if no songs"""
         try:
-            get = Queue.get_queue(chat_id)
-            if get == []:
-                LOGS.info(f"Queue empty for chat {chat_id}, leaving VC")
+            # Process queue - remove played song or decrease loop count
+            que = Queue.get_queue(chat_id)
+            if not que or que == []:
+                LOGS.info(f"Queue is empty for chat {chat_id}, leaving VC")
                 return await self.leave_vc(chat_id)
             
             loop = await db.get_loop(chat_id)
@@ -318,9 +259,10 @@ class HellMusic(PyTgCalls):
         video_id = get[0]["video_id"]
         
         try:
-            user = (await hellbot.app.get_users(user_id)).mention(style="md")
+            user = await hellbot.app.get_entity(user_id)
+            user_mention = f"[{user.first_name}](tg://user?id={user.id})"
         except:
-            user = get[0]["user"]
+            user_mention = get[0]["user"]
         
         if queue:
             tg = True if video_id == "telegram" else False
@@ -361,33 +303,33 @@ class HellMusic(PyTgCalls):
                 btns = Buttons.player_markup(
                     chat_id,
                     "None" if video_id == "telegram" else video_id,
-                    hellbot.app.username,
+                    hellbot.app.me.username,
                 )
                 
                 if photo:
-                    sent = await hellbot.app.send_photo(
+                    sent = await hellbot.app.send_file(
                         int(chat_id),
                         photo,
-                        TEXTS.PLAYING.format(
-                            hellbot.app.mention,
+                        caption=TEXTS.PLAYING.format(
+                            f"@{hellbot.app.me.username}",
                             title,
                             duration,
-                            user,
+                            user_mention,
                         ),
-                        reply_markup=InlineKeyboardMarkup(btns),
+                        buttons=btns,
                     )
                     os.remove(photo)
                 else:
                     sent = await hellbot.app.send_message(
                         int(chat_id),
                         TEXTS.PLAYING.format(
-                            hellbot.app.mention,
+                            f"@{hellbot.app.me.username}",
                             title,
                             duration,
-                            user,
+                            user_mention,
                         ),
-                        disable_web_page_preview=True,
-                        reply_markup=InlineKeyboardMarkup(btns),
+                        link_preview=False,
+                        buttons=btns,
                     )
                 
                 previous = Config.PLAYER_CACHE.get(chat_id)
@@ -400,10 +342,11 @@ class HellMusic(PyTgCalls):
                 Config.PLAYER_CACHE[chat_id] = sent
                 await db.update_songs_count(1)
                 await db.update_user(user_id, "songs_played", 1)
-                chat_name = (await hellbot.app.get_chat(chat_id)).title
+                chat = await hellbot.app.get_entity(chat_id)
+                chat_name = chat.title if hasattr(chat, 'title') else 'Unknown'
                 await hellbot.logit(
                     f"play {vc_type}",
-                    f"**⤷ Song:** `{title}` \n**⤷ Chat:** {chat_name} [`{chat_id}`] \n**⤷ User:** {user}",
+                    f"**⤷ Song:** `{title}` \n**⤷ Chat:** {chat_name} [`{chat_id}`] \n**⤷ User:** {user_mention}",
                 )
             except Exception as e:
                 LOGS.error(f"Error in change_vc streaming: {e}")
@@ -461,47 +404,59 @@ class HellMusic(PyTgCalls):
     async def join_gc(self, chat_id: int):
         try:
             try:
-                get = await hellbot.app.get_chat_member(chat_id, hellbot.user.id)
-            except ChatAdminRequired:
+                # Get participant info using Telethon
+                participant = await hellbot.app.get_permissions(chat_id, hellbot.user.id)
+            except ChatAdminRequiredError:
                 raise UserException(
                     f"[UserException]: Bot is not admin in chat {chat_id}"
                 )
-            if (
-                get.status == ChatMemberStatus.RESTRICTED
-                or get.status == ChatMemberStatus.BANNED
-            ):
+            
+            # Check if user is restricted or banned
+            if participant.is_banned:
                 raise UserException(
                     f"[UserException]: Assistant is restricted or banned in chat {chat_id}"
                 )
-        except UserNotParticipant:
-            chat = await hellbot.app.get_chat(chat_id)
-            if chat.username:
+        except UserNotParticipantError:
+            chat = await hellbot.app.get_entity(chat_id)
+            
+            # Check if chat has username (public group/channel)
+            if hasattr(chat, 'username') and chat.username:
                 try:
-                    await hellbot.user.join_chat(chat.username)
-                except UserAlreadyParticipant:
+                    await hellbot.user(JoinChannelRequest(chat.username))
+                except UserAlreadyParticipantError:
                     pass
                 except Exception as e:
                     raise UserException(f"[UserException]: {e}")
             else:
+                # Private group - need invite link
                 try:
                     try:
-                        link = chat.invite_link
+                        # Get full chat info to access invite link
+                        full_chat = await hellbot.app(GetFullChatRequest(chat_id))
+                        link = full_chat.full_chat.exported_invite.link if full_chat.full_chat.exported_invite else None
+                        
                         if link is None:
-                            link = await hellbot.app.export_chat_invite_link(chat_id)
-                    except ChatAdminRequired:
+                            # Export new invite link
+                            link = await hellbot.app(ExportChatInviteRequest(chat_id))
+                            link = link.link
+                    except ChatAdminRequiredError:
                         raise UserException(
                             f"[UserException]: Bot is not admin in chat {chat_id}"
                         )
                     except Exception as e:
                         raise UserException(f"[UserException]: {e}")
+                    
                     hell = await hellbot.app.send_message(
                         chat_id, "Inviting assistant to chat..."
                     )
+                    
+                    # Join using invite link
                     if link.startswith("https://t.me/+"):
                         link = link.replace("https://t.me/+", "https://t.me/joinchat/")
-                    await hellbot.user.join_chat(link)
-                    await hell.edit_text("Assistant joined the chat! Enjoy your music!")
-                except UserAlreadyParticipant:
+                    
+                    await hellbot.user(ImportChatInviteRequest(link.split('/')[-1]))
+                    await hell.edit("Assistant joined the chat! Enjoy your music!")
+                except UserAlreadyParticipantError:
                     pass
                 except Exception as e:
                     raise UserException(f"[UserException]: {e}")
