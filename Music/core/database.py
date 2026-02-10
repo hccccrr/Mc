@@ -466,4 +466,3 @@ class Database(object):
 
 
 db = Database()
-        
