@@ -208,3 +208,139 @@ async def seek(_, message: Message):
     await hell.edit_text(
         f"Seeked `{seek_time}` seconds {'forward' if seek_type == 1 else 'backward'}!"
     )
+
+
+@hellbot.app.on_message(filters.command("bass") & filters.group & ~Config.BANNED_USERS)
+@check_mode
+@AuthWrapper
+async def bass_boost(_, message: Message):
+    is_active = await db.is_active_vc(message.chat.id)
+    if not is_active:
+        return await message.reply_text("No active Voice Chat found here!")
+    
+    # Get bass boost level from command or cycle through levels
+    if len(message.command) < 2:
+        # Cycle through preset levels
+        effects = await db.get_audio_effects(message.chat.id)
+        current_bass = effects.get("bass_boost", 0)
+        
+        # Cycle: 0 -> 3 -> 6 -> 10 -> 0
+        if current_bass == 0:
+            new_bass = 3
+        elif current_bass == 3:
+            new_bass = 6
+        elif current_bass == 6:
+            new_bass = 10
+        else:
+            new_bass = 0
+    else:
+        try:
+            new_bass = int(message.command[1])
+            if not 0 <= new_bass <= 10:
+                return await message.reply_text(
+                    "Bass boost level must be between 0-10!\n\n"
+                    "**0** = No boost\n"
+                    "**3** = Light boost\n"
+                    "**6** = Medium boost\n"
+                    "**10** = Maximum boost"
+                )
+        except:
+            return await message.reply_text("Please enter a valid number (0-10)!")
+    
+    hell = await message.reply_text("Applying bass boost...")
+    
+    # Get current speed and apply effects
+    effects = await db.get_audio_effects(message.chat.id)
+    speed = effects.get("speed", 1.0)
+    
+    success = await hellmusic.apply_effects(message.chat.id, new_bass, speed)
+    
+    if success:
+        bass_label = "Off" if new_bass == 0 else f"+{new_bass} dB"
+        await hell.edit_text(
+            f"**🎸 Bass Boost: {bass_label}**\n"
+            f"Applied by: {message.from_user.mention}"
+        )
+    else:
+        await hell.edit_text("Failed to apply bass boost!")
+
+
+@hellbot.app.on_message(filters.command("speed") & filters.group & ~Config.BANNED_USERS)
+@check_mode
+@AuthWrapper
+async def playback_speed(_, message: Message):
+    is_active = await db.is_active_vc(message.chat.id)
+    if not is_active:
+        return await message.reply_text("No active Voice Chat found here!")
+    
+    # Get speed from command or cycle through speeds
+    if len(message.command) < 2:
+        # Cycle through preset speeds
+        effects = await db.get_audio_effects(message.chat.id)
+        current_speed = effects.get("speed", 1.0)
+        
+        # Cycle: 1.0 -> 1.25 -> 1.5 -> 0.75 -> 0.5 -> 1.0
+        if current_speed == 1.0:
+            new_speed = 1.25
+        elif current_speed == 1.25:
+            new_speed = 1.5
+        elif current_speed == 1.5:
+            new_speed = 0.75
+        elif current_speed == 0.75:
+            new_speed = 0.5
+        else:
+            new_speed = 1.0
+    else:
+        try:
+            new_speed = float(message.command[1])
+            if not 0.5 <= new_speed <= 2.0:
+                return await message.reply_text(
+                    "Speed must be between 0.5x - 2.0x!\n\n"
+                    "**0.5x** = Half speed (slow)\n"
+                    "**1.0x** = Normal speed\n"
+                    "**1.5x** = 1.5x faster\n"
+                    "**2.0x** = Double speed (fast)"
+                )
+        except:
+            return await message.reply_text("Please enter a valid number (0.5-2.0)!")
+    
+    hell = await message.reply_text("Changing playback speed...")
+    
+    # Get current bass boost and apply effects
+    effects = await db.get_audio_effects(message.chat.id)
+    bass = effects.get("bass_boost", 0)
+    
+    success = await hellmusic.apply_effects(message.chat.id, bass, new_speed)
+    
+    if success:
+        await hell.edit_text(
+            f"**⚡ Speed: {new_speed}x**\n"
+            f"Applied by: {message.from_user.mention}"
+        )
+    else:
+        await hell.edit_text("Failed to change playback speed!")
+
+
+@hellbot.app.on_message(filters.command("reseteffects") & filters.group & ~Config.BANNED_USERS)
+@check_mode
+@AuthWrapper
+async def reset_effects(_, message: Message):
+    is_active = await db.is_active_vc(message.chat.id)
+    if not is_active:
+        return await message.reply_text("No active Voice Chat found here!")
+    
+    hell = await message.reply_text("Resetting audio effects...")
+    
+    # Reset to default (no bass boost, normal speed)
+    success = await hellmusic.apply_effects(message.chat.id, 0, 1.0)
+    
+    if success:
+        await hell.edit_text(
+            f"**🔄 Audio effects reset to default!**\n"
+            f"Bass Boost: Off | Speed: 1.0x\n"
+            f"By: {message.from_user.mention}"
+        )
+    else:
+        await hell.edit_text("Failed to reset audio effects!")
+
+    
