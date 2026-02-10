@@ -1,12 +1,12 @@
 {
 	"name": "HellMusic",
-	"description": "A telegram voice chat music player bot by The-Hellbot, coded in python using Pyrogram and PyTgCalls",
+	"description": "A telegram voice chat music player bot by The-Hellbot, coded in python using Telethon and PyTgCalls",
 	"logo": "https://te.legra.ph/file/7decf235312af8536e9aa.jpg",
 	"keywords": [
 		"telegram",
 		"musicbot",
 		"python",
-		"pyrogram",
+		"telethon",
 		"pytgcalls",
 		"hellbot",
 		"modular",
@@ -44,8 +44,8 @@
             "description": "Your telegram user id.",
             "value": ""
         },
-        "HELLBOT_SESSION": {
-            "description": "Paste pyrogram session string.",
+        "STRING_SESSION": {
+            "description": "Paste Telethon session string. Generate it using hell_string.py file.",
             "value": ""
         },
 		"HEROKU_API": {
