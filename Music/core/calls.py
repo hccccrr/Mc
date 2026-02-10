@@ -176,10 +176,22 @@ class HellMusic(PyTgCalls):
         if current["video_id"] == "telegram":
             file_path = current["file"]
         else:
-            file_path = await ytube.download(current["video_id"], True, video)
+            try:
+                file_path = await ytube.download(current["video_id"], True, video)
+            except Exception as e:
+                LOGS.error(f"Error downloading for effects: {e}")
+                return False
         
-        # Get FFmpeg parameters with effects
-        ffmpeg_params = self.get_ffmpeg_parameters(bass_boost, speed)
+        # Get current playback position to maintain continuity
+        played = int(current.get("played", 0))
+        duration = current.get("duration", "0:00")
+        
+        # Get FFmpeg parameters with effects and seek to current position
+        if played > 0:
+            seek_time = formatter.secs_to_mins(played)
+            ffmpeg_params = self.get_ffmpeg_parameters(bass_boost, speed, seek_time, duration)
+        else:
+            ffmpeg_params = self.get_ffmpeg_parameters(bass_boost, speed)
         
         # Create MediaStream with effects
         if video:
@@ -243,13 +255,16 @@ class HellMusic(PyTgCalls):
             return
 
     async def replay_vc(self, chat_id: int, file_path: str, video: bool = False):
-        # Get current audio effects
+        # Get current audio effects and apply them on replay
         effects = await db.get_audio_effects(chat_id)
         bass_boost = effects.get("bass_boost", 0)
         speed = effects.get("speed", 1.0)
         
-        # Get FFmpeg parameters with effects
-        ffmpeg_params = self.get_ffmpeg_parameters(bass_boost, speed)
+        # Only apply effects if they're not default (user has set them)
+        if bass_boost != 0 or speed != 1.0:
+            ffmpeg_params = self.get_ffmpeg_parameters(bass_boost, speed)
+        else:
+            ffmpeg_params = None
         
         # Create MediaStream for PyTgCalls 2.2.8
         if video:
@@ -321,27 +336,20 @@ class HellMusic(PyTgCalls):
                     Queue.rm_queue(chat_id, 0)
                     return await self.change_vc(chat_id)
             
-            # Get current audio effects
-            effects = await db.get_audio_effects(chat_id)
-            bass_boost = effects.get("bass_boost", 0)
-            speed = effects.get("speed", 1.0)
+            # Don't apply effects automatically on song change
+            # User can reapply effects if they want them
             
-            # Get FFmpeg parameters with effects
-            ffmpeg_params = self.get_ffmpeg_parameters(bass_boost, speed)
-            
-            # Create MediaStream for PyTgCalls 2.2.8
+            # Create MediaStream for PyTgCalls 2.2.8 (no effects initially)
             if vc_type == "video":
                 stream = MediaStream(
                     to_stream,
                     audio_parameters=AudioQuality.MEDIUM,
                     video_parameters=VideoQuality.SD_480p,
-                    ffmpeg_parameters=ffmpeg_params,
                 )
             else:
                 stream = MediaStream(
                     to_stream,
                     audio_parameters=AudioQuality.MEDIUM,
-                    ffmpeg_parameters=ffmpeg_params,
                 )
             
             try:
@@ -401,27 +409,20 @@ class HellMusic(PyTgCalls):
                 raise ChangeVCException(f"[ChangeVCException]: {e}")
 
     async def join_vc(self, chat_id: int, file_path: str, video: bool = False):
-        # Get current audio effects (or set default)
-        effects = await db.get_audio_effects(chat_id)
-        bass_boost = effects.get("bass_boost", 0)
-        speed = effects.get("speed", 1.0)
+        # Don't apply effects on initial join - let stream start normally
+        # User can apply effects after song starts playing
         
-        # Get FFmpeg parameters with effects
-        ffmpeg_params = self.get_ffmpeg_parameters(bass_boost, speed)
-        
-        # Create MediaStream for PyTgCalls 2.2.8
+        # Create MediaStream for PyTgCalls 2.2.8 (no effects initially)
         if video:
             stream = MediaStream(
                 file_path,
                 audio_parameters=AudioQuality.MEDIUM,
                 video_parameters=VideoQuality.SD_480p,
-                ffmpeg_parameters=ffmpeg_params,
             )
         else:
             stream = MediaStream(
                 file_path,
                 audio_parameters=AudioQuality.MEDIUM,
-                ffmpeg_parameters=ffmpeg_params,
             )
 
         # Join VC using PyTgCalls 2.2.8 method
@@ -452,6 +453,9 @@ class HellMusic(PyTgCalls):
         users = await self.vc_participants(chat_id)
         user_ids = [user.user_id for user in users] if users else []
         await self.autoend(chat_id, user_ids)
+        
+        # Initialize audio effects to default
+        await db.set_audio_effects(chat_id, 0, 1.0)
 
     async def join_gc(self, chat_id: int):
         try:
@@ -503,4 +507,3 @@ class HellMusic(PyTgCalls):
 
 
 hellmusic = HellMusic()
-                    
