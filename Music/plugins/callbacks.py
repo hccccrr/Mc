@@ -211,6 +211,62 @@ async def controler_cb(_, cb: CallbackQuery):
             await cb.message.edit_reply_markup(InlineKeyboardMarkup(btns))
         except:
             return
+    elif action == "bass":
+        # Get current bass boost level
+        effects = await db.get_audio_effects(cb.message.chat.id)
+        current_bass = effects.get("bass_boost", 0)
+        
+        # Increment bass boost (0 -> 3 -> 6 -> 10 -> 0)
+        if current_bass == 0:
+            new_bass = 3
+        elif current_bass == 3:
+            new_bass = 6
+        elif current_bass == 6:
+            new_bass = 10
+        else:
+            new_bass = 0
+        
+        # Apply bass boost
+        speed = effects.get("speed", 1.0)
+        success = await hellmusic.apply_effects(cb.message.chat.id, new_bass, speed)
+        
+        if success:
+            bass_label = "Off" if new_bass == 0 else f"+{new_bass} dB"
+            await cb.answer(f"Bass Boost: {bass_label}", show_alert=True)
+            await cb.message.reply_text(
+                f"**🎸 Bass Boost: {bass_label}**\nBy: {cb.from_user.mention}"
+            )
+        else:
+            await cb.answer("Failed to apply bass boost!", show_alert=True)
+    elif action == "speed":
+        # Get current speed
+        effects = await db.get_audio_effects(cb.message.chat.id)
+        current_speed = effects.get("speed", 1.0)
+        
+        # Cycle through speeds (1.0 -> 1.25 -> 1.5 -> 0.75 -> 0.5 -> 1.0)
+        if current_speed == 1.0:
+            new_speed = 1.25
+        elif current_speed == 1.25:
+            new_speed = 1.5
+        elif current_speed == 1.5:
+            new_speed = 0.75
+        elif current_speed == 0.75:
+            new_speed = 0.5
+        else:
+            new_speed = 1.0
+        
+        # Apply speed change
+        bass = effects.get("bass_boost", 0)
+        success = await hellmusic.apply_effects(cb.message.chat.id, bass, new_speed)
+        
+        if success:
+            speed_label = f"{new_speed}x"
+            await cb.answer(f"Speed: {speed_label}", show_alert=True)
+            await cb.message.reply_text(
+                f"**⚡ Speed: {speed_label}**\nBy: {cb.from_user.mention}"
+            )
+        else:
+            await cb.answer("Failed to apply speed change!", show_alert=True)
 
 
 @hellbot.app.on_callback_query(filters.regex(r"help") & ~Config.BANNED_USERS)
@@ -259,4 +315,5 @@ async def source_cb(_, cb: CallbackQuery):
         TEXTS.SOURCE.format(hellbot.app.mention),
         reply_markup=InlineKeyboardMarkup(Buttons.source_markup()),
         disable_web_page_preview=True,
-    )
+        )
+            
