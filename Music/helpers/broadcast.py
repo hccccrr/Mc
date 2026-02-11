@@ -5,8 +5,12 @@ import time
 import traceback
 
 import aiofiles
-from pyrogram.errors import FloodWait, InputUserDeactivated, PeerIdInvalid, UserIsBlocked
-from pyrogram.types import Message
+from telethon.errors import (
+    FloodWaitError,
+    UserDeactivatedBanError,
+    PeerIdInvalidError,
+    UserBlockedError
+)
 
 from Music.core.database import db
 
@@ -17,26 +21,29 @@ class Broadcast:
     def __init__(self) -> None:
         self.file_name = "broadcast_{0}.txt"
 
-    async def send_msg(self, user_id: int, message: Message, copy: bool):
+    async def send_msg(self, user_id: int, message, copy: bool):
+        """Send message to user (forward or copy)"""
         try:
             if copy is False:
-                await message.forward(chat_id=user_id)
+                await message.forward_to(user_id)
             elif copy is True:
-                await message.copy(chat_id=user_id)
+                # Copy message (send as new)
+                await message.client.send_message(user_id, message)
             return 200, None
-        except FloodWait as e:
-            await asyncio.sleep(e.x)
-            return self.send_msg(user_id, message, copy)
-        except InputUserDeactivated:
+        except FloodWaitError as e:
+            await asyncio.sleep(e.seconds)
+            return await self.send_msg(user_id, message, copy)
+        except UserDeactivatedBanError:
             return 400, f"{user_id} -:- deactivated\n"
-        except UserIsBlocked:
+        except UserBlockedError:
             return 400, f"{user_id} -:- blocked the bot\n"
-        except PeerIdInvalid:
+        except PeerIdInvalidError:
             return 400, f"{user_id} -:- user id invalid\n"
         except Exception:
             return 500, f"{user_id} -:- {traceback.format_exc()}\n"
 
-    async def broadcast(self, message: Message, type: str, copy: bool):
+    async def broadcast(self, message, type: str, copy: bool):
+        """Broadcast message to users/chats"""
         targets = []
         if type == "chats":
             target = await db.get_all_chats()
@@ -55,15 +62,19 @@ class Broadcast:
             targets.append(targets_c)
             count = count_u + count_c
 
-        broadcast_msg = message.reply_to_message
-        out = await message.reply_text(
-            text=f"**Starting broadcast ...** \n\nYou'll get the log file after it's finised."
+        # Get message to broadcast
+        broadcast_msg = await message.get_reply_message()
+        
+        out = await message.reply(
+            "**Starting broadcast ...** \n\nYou'll get the log file after it's finished."
         )
+        
         start_time = time.time()
         done = 0
         failed = 0
         success = 0
         file_name = self.file_name.format(round(time.time()))
+        
         async with aiofiles.open(file_name, "w") as broadcast_log_file:
             for target in targets:
                 async for user in target:
@@ -81,34 +92,35 @@ class Broadcast:
                         )
                     except Exception:
                         pass
+                    
                     if msg is not None:
                         await broadcast_log_file.write(msg)
+                    
                     if sts == 200:
                         success += 1
                     else:
                         failed += 1
                     done += 1
+        
         completed_in = datetime.timedelta(seconds=int(time.time() - start_time))
         await asyncio.sleep(3)
         await out.delete()
+        
         success_text = (
             "__Broadcast completed successfully!__\n\n"
             f"**Chats in DB:** `{count} chats` \n**Gcast Iterations:** `{done} loops` \n**Gcasted in:** `{success} chats` \n**Failed in:** `{failed} chats` \n**Completed in:** `{completed_in}`"
         )
+        
         if failed == 0:
-            await message.reply_text(
-                text=success_text,
-                quote=True,
-            )
+            await message.reply(success_text)
         else:
             log_text = ""
             with open(file_name, "r") as _file:
                 log_text = _file.read()
             link = await formatter.bb_paste(log_text)
-            await message.reply_document(
-                document=file_name,
-                caption=success_text + f"\n\n**Error log:** [here]({link})",
-                quote=True,
+            await message.reply(
+                success_text + f"\n\n**Error log:** [here]({link})",
+                file=file_name,
             )
         os.remove(file_name)
 
