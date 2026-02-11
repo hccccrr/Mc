@@ -1,5 +1,4 @@
-from pyrogram import filters
-from pyrogram.types import Message
+from telethon import events
 
 from config import Config
 from Music.core.calls import hellmusic
@@ -12,187 +11,234 @@ from Music.utils.queue import Queue
 from Music.utils.youtube import ytube
 
 
-@hellbot.app.on_message(
-    filters.command(["mute", "unmute"]) & filters.group & ~Config.BANNED_USERS
-)
+@hellbot.app.on(events.NewMessage(pattern=r"^/(mute|unmute)"))
 @check_mode
 @AuthWrapper
-async def mute_unmute(_, message: Message):
-    is_muted = await db.get_watcher(message.chat.id, "mute")
-    if message.command[0][0] == "u":
+async def mute_unmute(event):
+    if not event.is_group:
+        return
+    if event.sender_id in Config.BANNED_USERS:
+        return
+    
+    cmd = event.text.split()[0]
+    is_muted = await db.get_watcher(event.chat_id, "mute")
+    sender = await event.get_sender()
+    mention = f"[{sender.first_name}](tg://user?id={sender.id})"
+    
+    if cmd == "/unmute":
         if is_muted:
-            await db.set_watcher(message.chat.id, "mute", False)
-            await hellmusic.unmute_vc(message.chat.id)
-            return await message.reply_text(
-                f"__VC Unmuted by:__ {message.from_user.mention}"
-            )
+            await db.set_watcher(event.chat_id, "mute", False)
+            await hellmusic.unmute_vc(event.chat_id)
+            return await event.reply(f"__VC Unmuted by:__ {mention}")
         else:
-            return await message.reply_text("Voice Chat is not muted!")
+            return await event.reply("Voice Chat is not muted!")
     else:
         if is_muted:
-            return await message.reply_text("Voice Chat is already muted!")
+            return await event.reply("Voice Chat is already muted!")
         else:
-            await db.set_watcher(message.chat.id, "mute", True)
-            await hellmusic.mute_vc(message.chat.id)
-            return await message.reply_text(
-                f"__VC Muted by:__ {message.from_user.mention}"
-            )
+            await db.set_watcher(event.chat_id, "mute", True)
+            await hellmusic.mute_vc(event.chat_id)
+            return await event.reply(f"__VC Muted by:__ {mention}")
 
 
-@hellbot.app.on_message(
-    filters.command(["pause", "resume"]) & filters.group & ~Config.BANNED_USERS
-)
+@hellbot.app.on(events.NewMessage(pattern=r"^/(pause|resume)"))
 @check_mode
 @AuthWrapper
-async def pause_resume(_, message: Message):
-    is_paused = await db.get_watcher(message.chat.id, "pause")
-    if message.command[0][0] == "r":
+async def pause_resume(event):
+    if not event.is_group:
+        return
+    if event.sender_id in Config.BANNED_USERS:
+        return
+    
+    cmd = event.text.split()[0]
+    is_paused = await db.get_watcher(event.chat_id, "pause")
+    sender = await event.get_sender()
+    mention = f"[{sender.first_name}](tg://user?id={sender.id})"
+    
+    if cmd == "/resume":
         if is_paused:
-            await db.set_watcher(message.chat.id, "pause", False)
-            await hellmusic.resume_vc(message.chat.id)
-            return await message.reply_text(
-                f"__VC Resumed by:__ {message.from_user.mention}"
-            )
+            await db.set_watcher(event.chat_id, "pause", False)
+            await hellmusic.resume_vc(event.chat_id)
+            return await event.reply(f"__VC Resumed by:__ {mention}")
         else:
-            return await message.reply_text("Voice Chat is not paused!")
+            return await event.reply("Voice Chat is not paused!")
     else:
         if is_paused:
-            return await message.reply_text("Voice Chat is already paused!")
+            return await event.reply("Voice Chat is already paused!")
         else:
-            await db.set_watcher(message.chat.id, "pause", True)
-            await hellmusic.pause_vc(message.chat.id)
-            return await message.reply_text(
-                f"__VC Paused by:__ {message.from_user.mention}"
-            )
+            await db.set_watcher(event.chat_id, "pause", True)
+            await hellmusic.pause_vc(event.chat_id)
+            return await event.reply(f"__VC Paused by:__ {mention}")
 
 
-@hellbot.app.on_message(
-    filters.command(["stop", "end"]) & filters.group & ~Config.BANNED_USERS
-)
+@hellbot.app.on(events.NewMessage(pattern=r"^/(stop|end)"))
 @check_mode
 @AuthWrapper
-async def stop_end(_, message: Message):
-    await hellmusic.leave_vc(message.chat.id)
-    await db.set_loop(message.chat.id, 0)
-    await message.reply_text(f"__VC Stopped by:__ {message.from_user.mention}")
+async def stop_end(event):
+    if not event.is_group:
+        return
+    if event.sender_id in Config.BANNED_USERS:
+        return
+    
+    await hellmusic.leave_vc(event.chat_id)
+    await db.set_loop(event.chat_id, 0)
+    sender = await event.get_sender()
+    mention = f"[{sender.first_name}](tg://user?id={sender.id})"
+    await event.reply(f"__VC Stopped by:__ {mention}")
 
 
-@hellbot.app.on_message(filters.command("loop") & filters.group & ~Config.BANNED_USERS)
+@hellbot.app.on(events.NewMessage(pattern=r"^/loop"))
 @check_mode
 @AuthWrapper
-async def loop(_, message: Message):
-    if len(message.command) < 2:
-        return await message.reply_text(
+async def loop(event):
+    if not event.is_group:
+        return
+    if event.sender_id in Config.BANNED_USERS:
+        return
+    
+    parts = event.text.split()
+    if len(parts) < 2:
+        return await event.reply(
             "Please specify the number of times to loop the song! \n\nMaximum loop range is **10**. Give **0** to disable loop."
         )
+    
     try:
-        loop = int(message.command[1])
+        loop = int(parts[1])
     except Exception:
-        return await message.reply_text(
+        return await event.reply(
             "Please enter a valid number! \n\nMaximum loop range is **10**. Give **0** to disable loop."
         )
-    is_loop = await db.get_loop(message.chat.id)
+    
+    is_loop = await db.get_loop(event.chat_id)
+    sender = await event.get_sender()
+    mention = f"[{sender.first_name}](tg://user?id={sender.id})"
+    
     if loop == 0:
         if is_loop == 0:
-            return await message.reply_text("There is no active loop in this chat!")
-        await db.set_loop(message.chat.id, 0)
-        return await message.reply_text(
-            f"__Loop disabled by:__ {message.from_user.mention}\n\nPrevious loop was: `{is_loop}`"
+            return await event.reply("There is no active loop in this chat!")
+        await db.set_loop(event.chat_id, 0)
+        return await event.reply(
+            f"__Loop disabled by:__ {mention}\n\nPrevious loop was: `{is_loop}`"
         )
+    
     if 1 <= loop <= 10:
         final = is_loop + loop
         final = 10 if final > 10 else final
-        await db.set_loop(message.chat.id, final)
-        await message.reply_text(
-            f"__Loop set to:__ `{final}`\n__By:__ {message.from_user.mention} \n\nPrevious loop was: `{is_loop}`"
+        await db.set_loop(event.chat_id, final)
+        await event.reply(
+            f"__Loop set to:__ `{final}`\n__By:__ {mention} \n\nPrevious loop was: `{is_loop}`"
         )
     else:
-        return await message.reply_text(
+        return await event.reply(
             "Please enter a valid number! \n\nMaximum loop range is **10**. Give **0** to disable loop."
         )
 
 
-@hellbot.app.on_message(
-    filters.command("replay") & filters.group & ~Config.BANNED_USERS
-)
+@hellbot.app.on(events.NewMessage(pattern=r"^/replay"))
 @check_mode
 @AuthWrapper
-async def replay(_, message: Message):
-    is_active = await db.is_active_vc(message.chat.id)
+async def replay(event):
+    if not event.is_group:
+        return
+    if event.sender_id in Config.BANNED_USERS:
+        return
+    
+    is_active = await db.is_active_vc(event.chat_id)
     if not is_active:
-        return await message.reply_text("No active Voice Chat found here!")
-    hell = await message.reply_text("Replaying...")
-    que = Queue.get_queue(message.chat.id)
+        return await event.reply("No active Voice Chat found here!")
+    
+    hell = await event.reply("Replaying...")
+    que = Queue.get_queue(event.chat_id)
     if que == []:
         return await hell.edit("No songs in the queue to replay!")
-    await player.replay(message.chat.id, hell)
+    await player.replay(event.chat_id, hell)
 
 
-@hellbot.app.on_message(filters.command("skip") & filters.group & ~Config.BANNED_USERS)
+@hellbot.app.on(events.NewMessage(pattern=r"^/skip"))
 @check_mode
 @AuthWrapper
-async def skip(_, message: Message):
-    is_active = await db.is_active_vc(message.chat.id)
+async def skip(event):
+    if not event.is_group:
+        return
+    if event.sender_id in Config.BANNED_USERS:
+        return
+    
+    is_active = await db.is_active_vc(event.chat_id)
     if not is_active:
-        return await message.reply_text("No active Voice Chat found here!")
-    hell = await message.reply_text("Processing ...")
-    que = Queue.get_queue(message.chat.id)
+        return await event.reply("No active Voice Chat found here!")
+    
+    hell = await event.reply("Processing ...")
+    que = Queue.get_queue(event.chat_id)
     if que == []:
         return await hell.edit("No songs in the queue to skip!")
     if len(que) == 1:
-        return await hell.edit_text(
+        return await hell.edit(
             "No more songs in queue to skip! Use /end or /stop to stop the VC."
         )
-    is_loop = await db.get_loop(message.chat.id)
+    
+    is_loop = await db.get_loop(event.chat_id)
     if is_loop != 0:
-        await hell.edit_text("Disabled Loop to skip the current song!")
-        await db.set_loop(message.chat.id, 0)
-    await player.skip(message.chat.id, hell)
+        await hell.edit("Disabled Loop to skip the current song!")
+        await db.set_loop(event.chat_id, 0)
+    await player.skip(event.chat_id, hell)
 
 
-@hellbot.app.on_message(filters.command("seek") & filters.group & ~Config.BANNED_USERS)
+@hellbot.app.on(events.NewMessage(pattern=r"^/seek"))
 @check_mode
 @AuthWrapper
-async def seek(_, message: Message):
-    is_active = await db.is_active_vc(message.chat.id)
+async def seek(event):
+    if not event.is_group:
+        return
+    if event.sender_id in Config.BANNED_USERS:
+        return
+    
+    is_active = await db.is_active_vc(event.chat_id)
     if not is_active:
-        return await message.reply_text("No active Voice Chat found here!")
-    if len(message.command) < 2:
-        return await message.reply_text(
+        return await event.reply("No active Voice Chat found here!")
+    
+    parts = event.text.split()
+    if len(parts) < 2:
+        return await event.reply(
             "Please specify the time to seek! \n\n**Example:** \n__- Seek  10 secs forward >__ `/seek 10`. \n__- Seek  10 secs backward >__ `/seek -10`."
         )
-    hell = await message.reply_text("Seeking...")
+    
+    hell = await event.reply("Seeking...")
     try:
-        if message.command[1][0] == "-":
-            seek_time = int(message.command[1][1:])
-            seek_type = 0  # backward
+        if parts[1][0] == "-":
+            seek_time = int(parts[1][1:])
+            seek_type = 0
         else:
-            seek_time = int(message.command[1])
-            seek_type = 1  # forward
+            seek_time = int(parts[1])
+            seek_type = 1
     except:
-        return await hell.edit_text("Please enter numeric characters only!")
-    que = Queue.get_queue(message.chat.id)
+        return await hell.edit("Please enter numeric characters only!")
+    
+    que = Queue.get_queue(event.chat_id)
     if que == []:
-        return await hell.edit_text("No songs in the queue to seek!")
+        return await hell.edit("No songs in the queue to seek!")
+    
     played = int(que[0]["played"])
     duration = formatter.mins_to_secs(que[0]["duration"])
+    
     if seek_type == 0:
         if (played - seek_time) <= 10:
-            return await hell.edit_text(
+            return await hell.edit(
                 "Cannot seek when only 10 seconds are left! Use a lesser value."
             )
         to_seek = played - seek_time
     else:
         if (duration - (played + seek_time)) <= 10:
-            return await hell.edit_text(
+            return await hell.edit(
                 "Cannot seek when only 10 seconds are left! Use a lesser value."
             )
         to_seek = played + seek_time
+    
     video = True if que[0]["vc_type"] == "video" else False
     if que[0]["file"] == que[0]["video_id"]:
         file_path = await ytube.download(que[0]["video_id"], True, video)
     else:
         file_path = que[0]["file"]
+    
     try:
         context = {
             "chat_id": que[0]["chat_id"],
@@ -203,28 +249,33 @@ async def seek(_, message: Message):
         }
         await hellmusic.seek_vc(context)
     except:
-        return await hell.edit_text("Something went wrong!")
-    Queue.update_duration(message.chat.id, seek_type, seek_time)
-    await hell.edit_text(
+        return await hell.edit("Something went wrong!")
+    
+    Queue.update_duration(event.chat_id, seek_type, seek_time)
+    await hell.edit(
         f"Seeked `{seek_time}` seconds {'forward' if seek_type == 1 else 'backward'}!"
     )
 
 
-@hellbot.app.on_message(filters.command("bass") & filters.group & ~Config.BANNED_USERS)
+@hellbot.app.on(events.NewMessage(pattern=r"^/bass"))
 @check_mode
 @AuthWrapper
-async def bass_boost(_, message: Message):
-    is_active = await db.is_active_vc(message.chat.id)
-    if not is_active:
-        return await message.reply_text("No active Voice Chat found here!")
+async def bass_boost(event):
+    if not event.is_group:
+        return
+    if event.sender_id in Config.BANNED_USERS:
+        return
     
-    # Get bass boost level from command or cycle through levels
-    if len(message.command) < 2:
-        # Cycle through preset levels
-        effects = await db.get_audio_effects(message.chat.id)
+    is_active = await db.is_active_vc(event.chat_id)
+    if not is_active:
+        return await event.reply("No active Voice Chat found here!")
+    
+    parts = event.text.split()
+    
+    if len(parts) < 2:
+        effects = await db.get_audio_effects(event.chat_id)
         current_bass = effects.get("bass_boost", 0)
         
-        # Cycle: 0 -> 3 -> 6 -> 10 -> 0
         if current_bass == 0:
             new_bass = 3
         elif current_bass == 3:
@@ -235,9 +286,9 @@ async def bass_boost(_, message: Message):
             new_bass = 0
     else:
         try:
-            new_bass = int(message.command[1])
+            new_bass = int(parts[1])
             if not 0 <= new_bass <= 10:
-                return await message.reply_text(
+                return await event.reply(
                     "Bass boost level must be between 0-10!\n\n"
                     "**0** = No boost\n"
                     "**3** = Light boost\n"
@@ -245,41 +296,46 @@ async def bass_boost(_, message: Message):
                     "**10** = Maximum boost"
                 )
         except:
-            return await message.reply_text("Please enter a valid number (0-10)!")
+            return await event.reply("Please enter a valid number (0-10)!")
     
-    hell = await message.reply_text("Applying bass boost...")
+    hell = await event.reply("Applying bass boost...")
     
-    # Get current speed and apply effects
-    effects = await db.get_audio_effects(message.chat.id)
+    effects = await db.get_audio_effects(event.chat_id)
     speed = effects.get("speed", 1.0)
     
-    success = await hellmusic.apply_effects(message.chat.id, new_bass, speed)
+    success = await hellmusic.apply_effects(event.chat_id, new_bass, speed)
     
     if success:
         bass_label = "Off" if new_bass == 0 else f"+{new_bass} dB"
-        await hell.edit_text(
+        sender = await event.get_sender()
+        mention = f"[{sender.first_name}](tg://user?id={sender.id})"
+        await hell.edit(
             f"**🎸 Bass Boost: {bass_label}**\n"
-            f"Applied by: {message.from_user.mention}"
+            f"Applied by: {mention}"
         )
     else:
-        await hell.edit_text("Failed to apply bass boost!")
+        await hell.edit("Failed to apply bass boost!")
 
 
-@hellbot.app.on_message(filters.command("speed") & filters.group & ~Config.BANNED_USERS)
+@hellbot.app.on(events.NewMessage(pattern=r"^/speed"))
 @check_mode
 @AuthWrapper
-async def playback_speed(_, message: Message):
-    is_active = await db.is_active_vc(message.chat.id)
-    if not is_active:
-        return await message.reply_text("No active Voice Chat found here!")
+async def playback_speed(event):
+    if not event.is_group:
+        return
+    if event.sender_id in Config.BANNED_USERS:
+        return
     
-    # Get speed from command or cycle through speeds
-    if len(message.command) < 2:
-        # Cycle through preset speeds
-        effects = await db.get_audio_effects(message.chat.id)
+    is_active = await db.is_active_vc(event.chat_id)
+    if not is_active:
+        return await event.reply("No active Voice Chat found here!")
+    
+    parts = event.text.split()
+    
+    if len(parts) < 2:
+        effects = await db.get_audio_effects(event.chat_id)
         current_speed = effects.get("speed", 1.0)
         
-        # Cycle: 1.0 -> 1.25 -> 1.5 -> 0.75 -> 0.5 -> 1.0
         if current_speed == 1.0:
             new_speed = 1.25
         elif current_speed == 1.25:
@@ -292,9 +348,9 @@ async def playback_speed(_, message: Message):
             new_speed = 1.0
     else:
         try:
-            new_speed = float(message.command[1])
+            new_speed = float(parts[1])
             if not 0.5 <= new_speed <= 2.0:
-                return await message.reply_text(
+                return await event.reply(
                     "Speed must be between 0.5x - 2.0x!\n\n"
                     "**0.5x** = Half speed (slow)\n"
                     "**1.0x** = Normal speed\n"
@@ -302,45 +358,51 @@ async def playback_speed(_, message: Message):
                     "**2.0x** = Double speed (fast)"
                 )
         except:
-            return await message.reply_text("Please enter a valid number (0.5-2.0)!")
+            return await event.reply("Please enter a valid number (0.5-2.0)!")
     
-    hell = await message.reply_text("Changing playback speed...")
+    hell = await event.reply("Changing playback speed...")
     
-    # Get current bass boost and apply effects
-    effects = await db.get_audio_effects(message.chat.id)
+    effects = await db.get_audio_effects(event.chat_id)
     bass = effects.get("bass_boost", 0)
     
-    success = await hellmusic.apply_effects(message.chat.id, bass, new_speed)
+    success = await hellmusic.apply_effects(event.chat_id, bass, new_speed)
     
     if success:
-        await hell.edit_text(
+        sender = await event.get_sender()
+        mention = f"[{sender.first_name}](tg://user?id={sender.id})"
+        await hell.edit(
             f"**⚡ Speed: {new_speed}x**\n"
-            f"Applied by: {message.from_user.mention}"
+            f"Applied by: {mention}"
         )
     else:
-        await hell.edit_text("Failed to change playback speed!")
+        await hell.edit("Failed to change playback speed!")
 
 
-@hellbot.app.on_message(filters.command("reseteffects") & filters.group & ~Config.BANNED_USERS)
+@hellbot.app.on(events.NewMessage(pattern=r"^/reseteffects"))
 @check_mode
 @AuthWrapper
-async def reset_effects(_, message: Message):
-    is_active = await db.is_active_vc(message.chat.id)
+async def reset_effects(event):
+    if not event.is_group:
+        return
+    if event.sender_id in Config.BANNED_USERS:
+        return
+    
+    is_active = await db.is_active_vc(event.chat_id)
     if not is_active:
-        return await message.reply_text("No active Voice Chat found here!")
+        return await event.reply("No active Voice Chat found here!")
     
-    hell = await message.reply_text("Resetting audio effects...")
+    hell = await event.reply("Resetting audio effects...")
     
-    # Reset to default (no bass boost, normal speed)
-    success = await hellmusic.apply_effects(message.chat.id, 0, 1.0)
+    success = await hellmusic.apply_effects(event.chat_id, 0, 1.0)
     
     if success:
-        await hell.edit_text(
+        sender = await event.get_sender()
+        mention = f"[{sender.first_name}](tg://user?id={sender.id})"
+        await hell.edit(
             f"**🔄 Audio effects reset to default!**\n"
             f"Bass Boost: Off | Speed: 1.0x\n"
-            f"By: {message.from_user.mention}"
+            f"By: {mention}"
         )
     else:
-        await hell.edit_text("Failed to reset audio effects!")
-
+        await hell.edit("Failed to reset audio effects!")
     
