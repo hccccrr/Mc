@@ -8,8 +8,7 @@ import traceback
 from datetime import datetime
 
 from git import Repo, InvalidGitRepositoryError, GitCommandError
-from pyrogram import filters
-from pyrogram.types import Message
+from telethon import events
 
 from config import Config, all_vars
 from Music.core.calls import hellmusic
@@ -26,14 +25,19 @@ async def aexec(code, client, message):
     return await locals()["__aexec"](client, message)
 
 
-@hellbot.app.on_message(filters.command(["eval", "run"]) & Config.SUDO_USERS)
-async def eval(_, message: Message):
-    hell = await message.reply_text("**Processing...**")
-    lists = message.text.split(" ", 1)
-    if len(lists) != 2:
-        return await hell.edit_text("**Received empty message!**")
-    cmd = lists[1].strip()
-    reply_to = message.reply_to_message or message
+@hellbot.app.on(events.NewMessage(pattern=r"^/(eval|run)"))
+async def eval_cmd(event):
+    if event.sender_id not in Config.SUDO_USERS:
+        return
+    
+    hell = await event.reply("**Processing...**")
+    parts = event.text.split(maxsplit=1)
+    
+    if len(parts) != 2:
+        return await hell.edit("**Received empty message!**")
+    
+    cmd = parts[1].strip()
+    reply_to = await event.get_reply_message() if event.is_reply else event
 
     old_stderr = sys.stderr
     old_stdout = sys.stdout
@@ -42,7 +46,7 @@ async def eval(_, message: Message):
     stdout, stderr, exc = None, None, None
     
     try:
-        await aexec(cmd, hellbot, message)
+        await aexec(cmd, hellbot, event)
     except Exception:
         exc = traceback.format_exc()
     
@@ -69,23 +73,24 @@ async def eval(_, message: Message):
     if len(final_output) > 4096:
         with io.BytesIO(str.encode(final_output)) as out_file:
             out_file.name = "eval.txt"
-            await reply_to.reply_document(
-                document=out_file, caption=cmd[:1000], disable_notification=True
-            )
+            await reply_to.reply(cmd[:1000], file=out_file)
     else:
-        await reply_to.reply_text(final_output)
+        await reply_to.reply(final_output, parse_mode='html')
     await hell.delete()
 
 
-@hellbot.app.on_message(
-    filters.command(["exec", "term", "sh", "shell"]) & Config.GOD_USERS
-)
-async def term(_, message: Message):
-    hell = await message.reply_text("**Processing...**")
-    lists = message.text.split(" ", 1)
-    if len(lists) != 2:
-        return await hell.edit_text("**Received empty message!**")
-    cmd = lists[1].strip()
+@hellbot.app.on(events.NewMessage(pattern=r"^/(exec|term|sh|shell)"))
+async def term(event):
+    if event.sender_id not in Config.GOD_USERS:
+        return
+    
+    hell = await event.reply("**Processing...**")
+    parts = event.text.split(maxsplit=1)
+    
+    if len(parts) != 2:
+        return await hell.edit("**Received empty message!**")
+    
+    cmd = parts[1].strip()
     
     if "\n" in cmd:
         code = cmd.split("\n")
@@ -97,8 +102,8 @@ async def term(_, message: Message):
                     shell, stdout=subprocess.PIPE, stderr=subprocess.PIPE
                 )
             except Exception as err:
-                print(err)
                 await hell.edit(f"**Error:** \n`{err}`")
+                return
             output += f"**{code}**\n"
             output += process.stdout.read()[:-1].decode("utf-8")
             output += "\n"
@@ -125,10 +130,7 @@ async def term(_, message: Message):
             filename = "output.txt"
             with open(filename, "w+") as file:
                 file.write(output)
-            await message.reply_document(
-                filename,
-                caption=f"`{cmd}`",
-            )
+            await event.reply(f"`{cmd}`", file=filename)
             os.remove(filename)
             return
         await hell.edit(f"**Output:**\n`{output}`")
@@ -136,150 +138,128 @@ async def term(_, message: Message):
         await hell.edit("**Output:**\n`No Output`")
 
 
-@hellbot.app.on_message(filters.command(["getvar", "gvar", "var"]) & Config.GOD_USERS)
-async def varget_(_, message: Message):
-    if len(message.command) != 2:
-        return await message.reply_text("**Give a variable name to get it's value.**")
-    check_var = message.text.split(None, 2)[1]
+@hellbot.app.on(events.NewMessage(pattern=r"^/(getvar|gvar|var)"))
+async def varget_(event):
+    if event.sender_id not in Config.GOD_USERS:
+        return
+    
+    parts = event.text.split()
+    if len(parts) != 2:
+        return await event.reply("**Give a variable name to get it's value.**")
+    
+    check_var = parts[1]
     if check_var.upper() not in all_vars:
-        return await message.reply_text("**Give a valid variable name to get it's value.**")
+        return await event.reply("**Give a valid variable name to get it's value.**")
+    
     output = Config.__dict__[check_var.upper()]
     if not output:
-        await message.reply_text("**No Output Found!**")
+        await event.reply("**No Output Found!**")
     else:
-        return await message.reply_text(f"**{check_var}:** `{str(output)}`")
+        return await event.reply(f"**{check_var}:** `{str(output)}`")
 
 
-@hellbot.app.on_message(filters.command("addsudo") & Config.GOD_USERS)
-async def useradd(_, message: Message):
-    if not message.reply_to_message:
-        if len(message.command) != 2:
-            return await message.reply_text(
+@hellbot.app.on(events.NewMessage(pattern=r"^/addsudo"))
+async def useradd(event):
+    if event.sender_id not in Config.GOD_USERS:
+        return
+    
+    if not event.is_reply:
+        parts = event.text.split()
+        if len(parts) != 2:
+            return await event.reply(
                 "**Reply to a user or give a user id to add them as sudo.**"
             )
-        user = message.text.split(None, 1)[1]
-        if "@" in user:
-            user = user.replace("@", "")
-        user = await hellbot.app.get_users(user)
+        user = parts[1].replace("@", "")
+        user = await hellbot.app.get_entity(user)
+        
         if user.id in Config.SUDO_USERS:
-            return await message.reply_text(f"**{user.mention} is already a sudo user.**")
+            mention = f"[{user.first_name}](tg://user?id={user.id})"
+            return await event.reply(f"**{mention} is already a sudo user.**")
+        
         added = await db.add_sudo(user.id)
         if added:
             Config.SUDO_USERS.add(user.id)
-            await message.reply_text(f"**{user.mention} is now a sudo user.**")
+            mention = f"[{user.first_name}](tg://user?id={user.id})"
+            await event.reply(f"**{mention} is now a sudo user.**")
         else:
-            await message.reply_text("**Failed to add sudo user.**")
+            await event.reply("**Failed to add sudo user.**")
         return
-    if message.reply_to_message.from_user.id in Config.SUDO_USERS:
-        return await message.reply_text(
-            f"**{message.reply_to_message.from_user.mention} is already a sudo user.**"
-        )
-    added = await db.add_sudo(message.reply_to_message.from_user.id)
+    
+    replied = await event.get_reply_message()
+    user = await replied.get_sender()
+    
+    if user.id in Config.SUDO_USERS:
+        mention = f"[{user.first_name}](tg://user?id={user.id})"
+        return await event.reply(f"**{mention} is already a sudo user.**")
+    
+    added = await db.add_sudo(user.id)
     if added:
-        Config.SUDO_USERS.add(message.reply_to_message.from_user.id)
-        await message.reply_text(
-            f"**{message.reply_to_message.from_user.mention} is now a sudo user.**"
-        )
+        Config.SUDO_USERS.add(user.id)
+        mention = f"[{user.first_name}](tg://user?id={user.id})"
+        await event.reply(f"**{mention} is now a sudo user.**")
     else:
-        await message.reply_text("**Failed to add sudo user.**")
-    return
+        await event.reply("**Failed to add sudo user.**")
 
 
-@hellbot.app.on_message(filters.command(["delsudo", "rmsudo"]) & Config.GOD_USERS)
-async def userdel(_, message: Message):
-    if not message.reply_to_message:
-        if len(message.command) != 2:
-            return await message.reply_text(
+@hellbot.app.on(events.NewMessage(pattern=r"^/(delsudo|rmsudo)"))
+async def userdel(event):
+    if event.sender_id not in Config.GOD_USERS:
+        return
+    
+    if not event.is_reply:
+        parts = event.text.split()
+        if len(parts) != 2:
+            return await event.reply(
                 "**Reply to a user or give a user id to remove them from sudo.**"
             )
-        user = message.text.split(None, 1)[1]
-        if "@" in user:
-            user = user.replace("@", "")
-        user = await hellbot.app.get_users(user)
+        user = parts[1].replace("@", "")
+        user = await hellbot.app.get_entity(user)
+        
         if user.id not in Config.SUDO_USERS:
-            return await message.reply_text(f"**{user.mention} is not a sudo user.**")
+            mention = f"[{user.first_name}](tg://user?id={user.id})"
+            return await event.reply(f"**{mention} is not a sudo user.**")
+        
         removed = await db.remove_sudo(user.id)
         if removed:
             Config.SUDO_USERS.remove(user.id)
-            await message.reply_text(f"**{user.mention} is no longer a sudo user.**")
+            mention = f"[{user.first_name}](tg://user?id={user.id})"
+            await event.reply(f"**{mention} is no longer a sudo user.**")
             return
-        await message.reply_text("**Failed to remove sudo user.**")
+        await event.reply("**Failed to remove sudo user.**")
         return
-    user_id = message.reply_to_message.from_user.id
+    
+    replied = await event.get_reply_message()
+    user_id = replied.sender_id
+    user = await replied.get_sender()
+    
     if user_id not in Config.SUDO_USERS:
-        return await message.reply_text(
-            f"**{message.reply_to_message.from_user.mention} is not a sudo user.**"
-        )
+        mention = f"[{user.first_name}](tg://user?id={user.id})"
+        return await event.reply(f"**{mention} is not a sudo user.**")
+    
     removed = await db.remove_sudo(user_id)
     if removed:
         Config.SUDO_USERS.remove(user_id)
-        await message.reply_text(
-            f"**{message.reply_to_message.from_user.mention} is no longer a sudo user.**"
-        )
+        mention = f"[{user.first_name}](tg://user?id={user.id})"
+        await event.reply(f"**{mention} is no longer a sudo user.**")
         return
-    await message.reply_text("**Failed to remove sudo user.**")
+    await event.reply("**Failed to remove sudo user.**")
 
 
-async def is_heroku():
-    """Check if running on Heroku"""
-    return "DYNO" in os.environ
-
-
-async def paste_to_bin(text):
-    """Paste text to a pastebin service"""
-    try:
-        import aiohttp
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                "https://nekobin.com/api/documents",
-                json={"content": text}
-            ) as resp:
-                if resp.status == 201:
-                    data = await resp.json()
-                    return f"https://nekobin.com/{data['result']['key']}"
-    except:
-        pass
-    return None
-
-
-def backup_env():
-    """Backup .env file before update"""
-    try:
-        if os.path.exists(".env"):
-            import shutil
-            shutil.copy2(".env", ".env.backup")
-            return True
-    except Exception as e:
-        print(f"Backup error: {e}")
-    return False
-
-
-def restore_env():
-    """Restore .env file after update"""
-    try:
-        if os.path.exists(".env.backup"):
-            import shutil
-            shutil.copy2(".env.backup", ".env")
-            os.remove(".env.backup")
-            return True
-    except Exception as e:
-        print(f"Restore error: {e}")
-    return False
-
-
-@hellbot.app.on_message(filters.command(["update", "gitpull"]) & Config.SUDO_USERS)
+@hellbot.app.on(events.NewMessage(pattern=r"^/(update|gitpull)"))
 @UserWrapper
-async def update_(_, message: Message):
+async def update_(event):
     """Update the bot from git repository"""
+    if event.sender_id not in Config.SUDO_USERS:
+        return
     
     # Check if on Heroku
-    if await is_heroku():
-        return await message.reply_text(
+    if "DYNO" in os.environ:
+        return await event.reply(
             "**Heroku Update:**\n"
             "Please use Heroku dashboard or CLI to update your bot on Heroku."
         )
     
-    response = await message.reply_text("**Checking for updates...**")
+    response = await event.reply("**Checking for updates...**")
     
     try:
         repo = Repo()
@@ -293,11 +273,6 @@ async def update_(_, message: Message):
             "**Invalid Repository:**\n"
             "The directory is not a valid git repository."
         )
-    
-    # Backup .env file
-    backup_success = backup_env()
-    if backup_success:
-        await response.edit("**Backing up configuration...**")
     
     # Fetch updates
     upstream_branch = Config.UPSTREAM_BRANCH if hasattr(Config, 'UPSTREAM_BRANCH') else "main"
@@ -313,96 +288,29 @@ async def update_(_, message: Message):
         verification = str(checks.count())
     
     if verification == "":
-        # Restore .env if backed up
-        if backup_success:
-            restore_env()
-        return await response.edit(f"**ʙᴏᴛ ɪs ᴜᴩ-ᴛᴏ-ᴅᴀᴛᴇ ᴡɪᴛʜ** `{upstream_branch}`")
+        return await response.edit(f"**Bot is up-to-date with** `{upstream_branch}`")
     
-    # Prepare update message
-    ordinal = lambda n: "%d%s" % (
-        n,
-        "tsnrhtdd"[(n // 10 % 10 != 1) * (n % 10 < 4) * n % 10 :: 4],
-    )
-    
-    updates = ""
-    for info in repo.iter_commits(f"HEAD..origin/{upstream_branch}"):
-        updates += (
-            f"<b>➣ #{info.count()}: "
-            f"<a href={REPO_URL}/commit/{info}>{info.summary}</a> "
-            f"ʙʏ {info.author}</b>\n"
-            f"<b>➥ ᴄᴏᴍᴍɪᴛᴇᴅ ᴏɴ:</b> "
-            f"{ordinal(int(datetime.fromtimestamp(info.committed_date).strftime('%d')))} "
-            f"{datetime.fromtimestamp(info.committed_date).strftime('%b')}, "
-            f"{datetime.fromtimestamp(info.committed_date).strftime('%Y')}\n\n"
-        )
-    
-    update_msg = (
-        "<b>ᴀ ɴᴇᴡ ᴜᴩᴅᴀᴛᴇ ɪs ᴀᴠᴀɪʟᴀʙʟᴇ ғᴏʀ ᴛʜᴇ ʙᴏᴛ!</b>\n\n"
-        "➣ ᴩᴜsʜɪɴɢ ᴜᴩᴅᴀᴛᴇs ɴᴏᴡ\n\n"
-        "<b><u>ᴜᴩᴅᴀᴛᴇs:</u></b>\n\n"
-    )
-    final_updates = update_msg + updates
-    
-    # Send update message
-    if len(final_updates) > 4096:
-        url = await paste_to_bin(updates)
-        nrs = await response.edit(
-            f"{update_msg}<a href={url}>ᴄʜᴇᴄᴋ ᴜᴩᴅᴀᴛᴇs</a>"
-        )
-    else:
-        nrs = await response.edit(final_updates, disable_web_page_preview=True)
-    
-    # Add .env to gitignore if not already
-    try:
-        gitignore_path = ".gitignore"
-        if os.path.exists(gitignore_path):
-            with open(gitignore_path, "r") as f:
-                gitignore_content = f.read()
-            if ".env" not in gitignore_content:
-                with open(gitignore_path, "a") as f:
-                    f.write("\n.env\n.env.backup\n")
-        else:
-            with open(gitignore_path, "w") as f:
-                f.write(".env\n.env.backup\n")
-    except:
-        pass
-    
-    # Pull updates - stash .env first to prevent conflicts
-    os.system("git add .gitignore")
+    # Pull updates
     os.system("git stash push -m 'Stashing local changes' -- .env .env.backup")
     os.system(f"git pull origin {upstream_branch}")
-    
-    # Restore .env file
-    if backup_success:
-        restore_env()
-        await asyncio.sleep(1)
     
     # Notify active chats
     try:
         active_chats = await db.get_active_vc()
-        count = 0
         for x in active_chats:
             cid = int(x["chat_id"])
             try:
                 await hellbot.app.send_message(
-                    chat_id=cid,
-                    text=f"**{hellbot.app.mention} ɪs ᴜᴩᴅᴀᴛɪɴɢ...**\n\n"
-                    f"ʙᴏᴛ ᴡɪʟʟ ʙᴇ ʙᴀᴄᴋ ɪɴ ᴀ ᴍɪɴᴜᴛᴇ.",
+                    cid,
+                    f"**{hellbot.app.me.username} is updating...**\n\nBot will be back in a minute.",
                 )
                 await hellmusic.leave_vc(cid)
-                count += 1
             except:
                 pass
-        
-        await response.edit(
-            f"{nrs.text}\n\n**✅ ᴜᴩᴅᴀᴛᴇ ᴄᴏᴍᴩʟᴇᴛᴇᴅ!**\n"
-            f"**Notified:** {count} chats\n"
-            f"**🔄 Rᴇsᴛᴀʀᴛɪɴɢ...**"
-        )
-    except Exception as e:
-        print(f"Notification error: {e}")
+    except:
+        pass
     
-    # Install requirements and restart
+    # Restart
     await asyncio.sleep(2)
     os.system("pip3 install -r requirements.txt &> /dev/null")
     os.system(f"kill -9 {os.getpid()} && bash StartMusic")
