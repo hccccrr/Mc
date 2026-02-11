@@ -1,40 +1,43 @@
-from pyrogram.types import InlineKeyboardButton
+from telethon import Button
 
 
 class MakeButtons:
     def __init__(self):
-        self.ikb = InlineKeyboardButton
+        # Telethon uses Button class directly
+        pass
 
     def close_markup(self):
-        buttons = [[self.ikb("🗑", callback_data="close")]]
+        """Close button"""
+        buttons = [[Button.inline("🗑", data="close")]]
         return buttons
 
     def queue_markup(self, count: int, page: int):
+        """Queue navigation buttons"""
         if count != 1:
             buttons = [
                 [
-                    self.ikb("⪨", callback_data=f"queue|prev|{page}"),
-                    self.ikb("🗑", callback_data="close"),
-                    self.ikb("⪩", callback_data=f"queue|next|{page}"),
+                    Button.inline("⪨", data=f"queue|prev|{page}"),
+                    Button.inline("🗑", data="close"),
+                    Button.inline("⪩", data=f"queue|next|{page}"),
                 ]
             ]
         else:
             buttons = [
                 [
-                    self.ikb("🗑", callback_data="close"),
+                    Button.inline("🗑", data="close"),
                 ]
             ]
-
         return buttons
 
     def playfavs_markup(self, user_id: int):
+        """Play favorites buttons"""
         buttons = [
             [
-                self.ikb("Audio", callback_data=f"favsplay|audio|{user_id}"),
-                self.ikb("Video", callback_data=f"favsplay|video|{user_id}"),
+                Button.inline("Audio", data=f"favsplay|audio|{user_id}"),
+                Button.inline("Video", data=f"favsplay|video|{user_id}"),
             ],
             [
-                self.ikb("🗑", callback_data=f"favsplay|close|{user_id}"),
+                Button.inline("🗑", data=f"favsplay|close|{user_id}"),
             ]
         ]
         return buttons
@@ -42,29 +45,32 @@ class MakeButtons:
     async def favorite_markup(
         self, collection: list, user_id: int, page: int, index: int, db, delete: bool
     ):
+        """Favorites list with navigation"""
         btns = []
         txt = ""
         d = 0 if delete == True else 1
+        
         if len(collection) != 1:
             nav_btns = [
                 [
-                    self.ikb("Play Favorites ❤️", callback_data=f"myfavs|play|{user_id}|0|0"),
+                    Button.inline("Play Favorites ❤️", data=f"myfavs|play|{user_id}|0|0"),
                 ],
                 [
-                    self.ikb("⪨", callback_data=f"myfavs|prev|{user_id}|{page}|{d}"),
-                    self.ikb("🗑", callback_data=f"myfavs|close|{user_id}|{page}|{d}"),
-                    self.ikb("⪩", callback_data=f"myfavs|next|{user_id}|{page}|{d}"),
+                    Button.inline("⪨", data=f"myfavs|prev|{user_id}|{page}|{d}"),
+                    Button.inline("🗑", data=f"myfavs|close|{user_id}|{page}|{d}"),
+                    Button.inline("⪩", data=f"myfavs|next|{user_id}|{page}|{d}"),
                 ]
             ]
         else:
             nav_btns = [
                 [
-                    self.ikb("Play Favorites ❤️", callback_data=f"myfavs|play|{user_id}|0|0"),
+                    Button.inline("Play Favorites ❤️", data=f"myfavs|play|{user_id}|0|0"),
                 ],
                 [
-                    self.ikb("🗑", callback_data=f"myfavs|close|{user_id}|{page}|{d}"),
+                    Button.inline("🗑", data=f"myfavs|close|{user_id}|{page}|{d}"),
                 ],
             ]
+        
         try:
             for track in collection[page]:
                 index += 1
@@ -72,7 +78,7 @@ class MakeButtons:
                 txt += f"**{'0' if index < 10 else ''}{index}:** {favs['title']}\n"
                 txt += f"    **Duration:** {favs['duration']}\n"
                 txt += f"    **Since:** {favs['add_date']}\n\n"
-                btns.append(self.ikb(text=f"{index}", callback_data=f"delfavs|{track}|{user_id}"))
+                btns.append(Button.inline(text=f"{index}", data=f"delfavs|{track}|{user_id}"))
         except:
             page = 0
             for track in collection[page]:
@@ -81,11 +87,11 @@ class MakeButtons:
                 txt += f"**{'0' if index < 10 else ''}{index}:** {favs['title']}\n"
                 txt += f"    **Duration:** {favs['duration']}\n"
                 txt += f"    **Since:** {favs['add_date']}\n\n"
-                btns.append(self.ikb(text=f"{index}", callback_data=f"delfavs|{track}|{user_id}"))
+                btns.append(Button.inline(text=f"{index}", data=f"delfavs|{track}|{user_id}"))
 
         if delete:
             btns = [btns]
-            btns.append([self.ikb(text="Delete All ❌", callback_data=f"delfavs|all|{user_id}")])
+            btns.append([Button.inline(text="Delete All ❌", data=f"delfavs|all|{user_id}")])
             buttons = btns + nav_btns
         else:
             buttons = nav_btns
@@ -93,200 +99,210 @@ class MakeButtons:
         return buttons, txt
 
     def active_vc_markup(self, count: int, page: int):
+        """Active voice chats navigation"""
         if count != 1:
             buttons = [
                 [
-                    self.ikb(text="⪨", callback_data=f"activevc|prev|{page}"),
-                    self.ikb(text="🗑", callback_data="close"),
-                    self.ikb(text="⪩", callback_data=f"activevc|next|{page}"),
+                    Button.inline(text="⪨", data=f"activevc|prev|{page}"),
+                    Button.inline(text="🗑", data="close"),
+                    Button.inline(text="⪩", data=f"activevc|next|{page}"),
                 ]
             ]
         else:
-            buttons = [[self.ikb(text="🗑", callback_data="close")]]
+            buttons = [[Button.inline(text="🗑", data="close")]]
         return buttons
 
     def authusers_markup(self, count: int, page: int, rand_key: str):
+        """Authorized users navigation"""
         if count != 1:
             buttons = [
                 [
-                    self.ikb(text="⪨", callback_data=f"authus|prev|{page}|{rand_key}"),
-                    self.ikb(text="🗑", callback_data=f"authus|close|{page}|{rand_key}"),
-                    self.ikb(text="⪩", callback_data=f"authus|next|{page}|{rand_key}"),
+                    Button.inline(text="⪨", data=f"authus|prev|{page}|{rand_key}"),
+                    Button.inline(text="🗑", data=f"authus|close|{page}|{rand_key}"),
+                    Button.inline(text="⪩", data=f"authus|next|{page}|{rand_key}"),
                 ]
             ]
         else:
             buttons = [
                 [
-                    self.ikb(text="🗑", callback_data=f"authus|close|{page}|{rand_key}")
+                    Button.inline(text="🗑", data=f"authus|close|{page}|{rand_key}")
                 ]
             ]
         return buttons
 
     def player_markup(self, chat_id, video_id, username):
+        """Player control buttons"""
         if video_id == "telegram":
             buttons = [
                 [
-                    self.ikb("🎛️", callback_data=f"controls|{video_id}|{chat_id}"),
-                    self.ikb("🗑", callback_data="close"),
+                    Button.inline("🎛️", data=f"controls|{video_id}|{chat_id}"),
+                    Button.inline("🗑", data="close"),
                 ]
             ]
         else:
             buttons = [
                 [
-                    self.ikb("About Song", url=f"https://t.me/{username}?start=song_{video_id}"),
+                    Button.url("About Song", url=f"https://t.me/{username}?start=song_{video_id}"),
                 ],
                 [
-                    self.ikb("❤️", callback_data=f"add_favorite|{video_id}"),
-                    self.ikb("🎛️", callback_data=f"controls|{video_id}|{chat_id}"),
+                    Button.inline("❤️", data=f"add_favorite|{video_id}"),
+                    Button.inline("🎛️", data=f"controls|{video_id}|{chat_id}"),
                 ],
                 [
-                    self.ikb("🗑", callback_data="close"),
+                    Button.inline("🗑", data="close"),
                 ],
             ]
         return buttons
 
     def controls_markup(self, video_id, chat_id):
+        """Playback controls"""
         buttons = [
             [
-                self.ikb(text="⟲", callback_data=f"ctrl|bseek|{chat_id}"),
-                self.ikb(text="⦿", callback_data=f"ctrl|play|{chat_id}"),
-                self.ikb(text="⟳", callback_data=f"ctrl|fseek|{chat_id}"),
+                Button.inline(text="⟲", data=f"ctrl|bseek|{chat_id}"),
+                Button.inline(text="⦿", data=f"ctrl|play|{chat_id}"),
+                Button.inline(text="⟳", data=f"ctrl|fseek|{chat_id}"),
             ],
             [
-                self.ikb(text="⊡ End", callback_data=f"ctrl|end|{chat_id}"),
-                self.ikb(text="↻ Replay", callback_data=f"ctrl|replay|{chat_id}"),
-                self.ikb(text="∞ Loop", callback_data=f"ctrl|loop|{chat_id}"),
+                Button.inline(text="⊡ End", data=f"ctrl|end|{chat_id}"),
+                Button.inline(text="↻ Replay", data=f"ctrl|replay|{chat_id}"),
+                Button.inline(text="∞ Loop", data=f"ctrl|loop|{chat_id}"),
             ],
             [
-                self.ikb(text="⊝ Mute", callback_data=f"ctrl|mute|{chat_id}"),
-                self.ikb(text="⊜ Unmute", callback_data=f"ctrl|unmute|{chat_id}"),
-                self.ikb(text="⊹ Skip", callback_data=f"ctrl|skip|{chat_id}"),
+                Button.inline(text="⊠ Mute", data=f"ctrl|mute|{chat_id}"),
+                Button.inline(text="⊜ Unmute", data=f"ctrl|unmute|{chat_id}"),
+                Button.inline(text="⊹ Skip", data=f"ctrl|skip|{chat_id}"),
             ],
             [
-                self.ikb(text="🎸 Bass", callback_data=f"ctrl|bass|{chat_id}"),
-                self.ikb(text="⚡ Speed", callback_data=f"ctrl|speed|{chat_id}"),
+                Button.inline(text="🎸 Bass", data=f"ctrl|bass|{chat_id}"),
+                Button.inline(text="⚡ Speed", data=f"ctrl|speed|{chat_id}"),
             ],
             [
-                self.ikb(text="🔙", callback_data=f"player|{video_id}|{chat_id}"),
-                self.ikb(text="🗑", callback_data="close"),
+                Button.inline(text="🔙", data=f"player|{video_id}|{chat_id}"),
+                Button.inline(text="🗑", data="close"),
             ],
         ]
         return buttons
 
     def song_markup(self, rand_key, url, key):
+        """Song download buttons"""
         buttons = [
             [
-                self.ikb(text="Visit Youtube", url=url),
+                Button.url(text="Visit Youtube", url=url),
             ],
             [
-                self.ikb(text="Audio", callback_data=f"song_dl|adl|{key}|{rand_key}"),
-                self.ikb(text="Video", callback_data=f"song_dl|vdl|{key}|{rand_key}"),
+                Button.inline(text="Audio", data=f"song_dl|adl|{key}|{rand_key}"),
+                Button.inline(text="Video", data=f"song_dl|vdl|{key}|{rand_key}"),
             ],
             [
-                self.ikb(text="⪨", callback_data=f"song_dl|prev|{key}|{rand_key}"),
-                self.ikb(text="⪩", callback_data=f"song_dl|next|{key}|{rand_key}"),
+                Button.inline(text="⪨", data=f"song_dl|prev|{key}|{rand_key}"),
+                Button.inline(text="⪩", data=f"song_dl|next|{key}|{rand_key}"),
             ],
             [
-                self.ikb(text="🗑", callback_data=f"song_dl|close|{key}|{rand_key}"),
+                Button.inline(text="🗑", data=f"song_dl|close|{key}|{rand_key}"),
             ],
         ]
-
         return buttons
 
     def song_details_markup(self, url, ch_url):
+        """Song details buttons"""
         buttons = [
             [
-                self.ikb(text="🎥", url=url),
-                self.ikb(text="📺", url=ch_url),
+                Button.url(text="🎥", url=url),
+                Button.url(text="📺", url=ch_url),
             ],
             [
-                self.ikb(text="🗑", callback_data="close"),
+                Button.inline(text="🗑", data="close"),
             ],
         ]
         return buttons
 
     def source_markup(self):
+        """Source code and support buttons"""
         buttons = [
             [
-                self.ikb(text="Github ❤️", url="https://github.com/The-HellBot"),
-                self.ikb(text="Repo 📦", url="https://github.com/The-HellBot/Music"),
+                Button.url(text="Github ❤️", url="https://github.com/The-HellBot"),
+                Button.url(text="Repo 📦", url="https://github.com/The-HellBot/Music"),
             ],
             [
-                self.ikb(text="Under HellBot Network { 🇮🇳 }", url="https://t.me/HellBot_Networks"),
+                Button.url(text="Under HellBot Network { 🇮🇳 }", url="https://t.me/HellBot_Networks"),
             ],
             [
-                self.ikb(text="Support 🎙️", url="https://t.me/HellBot_Chats"),
-                self.ikb(text="Updates 📣", url="https://t.me/Its_HellBot"),
+                Button.url(text="Support 🎙️", url="https://t.me/HellBot_Chats"),
+                Button.url(text="Updates 📣", url="https://t.me/Its_HellBot"),
             ],
             [
-                self.ikb(text="🔙", callback_data="help|start"),
-                self.ikb(text="🗑", callback_data="close"),
+                Button.inline(text="🔙", data="help|start"),
+                Button.inline(text="🗑", data="close"),
             ]
         ]
         return buttons
 
     def start_markup(self, username: str):
+        """Start button for groups"""
         buttons = [
             [
-                self.ikb(text="Start Me 🎵", url=f"https://t.me/{username}?start=start"),
-                self.ikb(text="🗑", callback_data="close"),
+                Button.url(text="Start Me 🎵", url=f"https://t.me/{username}?start=start"),
+                Button.inline(text="🗑", data="close"),
             ]
         ]
         return buttons
 
     def start_pm_markup(self, username: str):
+        """Start menu buttons for PM"""
         buttons = [
             [
-                self.ikb(text="Help ⚙️", callback_data="help|back"),
-                self.ikb(text="Source 📦", callback_data="source"),
+                Button.inline(text="Help ⚙️", data="help|back"),
+                Button.inline(text="Source 📦", data="source"),
             ],
             [
-                self.ikb(text="Add Me To Group 👥", url=f"https://t.me/{username}?startgroup=true"),
+                Button.url(text="Add Me To Group 👥", url=f"https://t.me/{username}?startgroup=true"),
             ],
             [
-                self.ikb(text="🗑", callback_data="close"),
+                Button.inline(text="🗑", data="close"),
             ]
         ]
         return buttons
 
     def help_gc_markup(self, username: str):
+        """Help button for groups"""
         buttons = [
             [
-                self.ikb(text="Get Help ❓", url=f"https://t.me/{username}?start=help"),
-                self.ikb(text="🗑", callback_data="close"),
+                Button.url(text="Get Help ❓", url=f"https://t.me/{username}?start=help"),
+                Button.inline(text="🗑", data="close"),
             ]
         ]
         return buttons
 
     def help_pm_markup(self):
+        """Help menu buttons"""
         buttons = [
             [
-                self.ikb(text="➊ Admins", callback_data="help|admin"),
-                self.ikb(text="➋ Users", callback_data="help|user"),
+                Button.inline(text="➊ Admins", data="help|admin"),
+                Button.inline(text="➋ Users", data="help|user"),
             ],
             [
-                self.ikb(text="➌ Sudos", callback_data="help|sudo"),
-                self.ikb(text="➍ Others", callback_data="help|others"),
+                Button.inline(text="➌ Sudos", data="help|sudo"),
+                Button.inline(text="➍ Others", data="help|others"),
             ],
             [
-                self.ikb(text="➎ Owner", callback_data="help|owner"),
+                Button.inline(text="➎ Owner", data="help|owner"),
             ],
             [
-                self.ikb(text="🔙", callback_data="help|start"),
-                self.ikb(text="🗑", callback_data="close"),
+                Button.inline(text="🔙", data="help|start"),
+                Button.inline(text="🗑", data="close"),
             ],
         ]
         return buttons
 
     def help_back(self):
+        """Back button for help"""
         buttons = [
             [
-                self.ikb(text="🔙", callback_data="help|back"),
-                self.ikb(text="🗑", callback_data="close"),
+                Button.inline(text="🔙", data="help|back"),
+                Button.inline(text="🗑", data="close"),
             ]
         ]
         return buttons
 
 
 Buttons = MakeButtons()
-                                                                          
