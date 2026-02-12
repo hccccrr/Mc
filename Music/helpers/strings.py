@@ -145,7 +145,7 @@ class TEXTS:
         "**📦 Version Info:**\n"
         "├ **🎵 HellMusic:** `{1}`\n"
         "├ **🐍 Python:** `{2}`\n"
-        "├ **📡 Pyrogram:** `{3}`\n"
+        "├ **📡 Telethon:** `{3}`\n"
         "└ **📞 PyTgCalls:** `{4}`\n\n"
         "**🔗 Powered By:** {5}"
     )
