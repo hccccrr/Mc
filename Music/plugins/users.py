@@ -1,5 +1,4 @@
-from pyrogram import filters
-from pyrogram.types import InlineKeyboardMarkup, Message
+from telethon import events
 
 from config import Config
 from Music.core.clients import hellbot
@@ -12,38 +11,47 @@ from Music.utils.admins import get_user_type
 from Music.utils.leaderboard import leaders
 
 
-@hellbot.app.on_message(
-    filters.command(["me", "profile"]) & filters.group & ~Config.BANNED_USERS
-)
+@hellbot.app.on(events.NewMessage(pattern=r"^/(me|profile)"))
 @check_mode
 @UserWrapper
-async def user_profile(_, message: Message):
-    user = await db.get_user(message.from_user.id)
+async def user_profile(event):
+    if not event.is_group:
+        return
+    if event.sender_id in Config.BANNED_USERS:
+        return
+    
+    user = await db.get_user(event.sender_id)
     if not user:
-        return await message.reply_text(
+        return await event.reply(
             "You are not yet registered on my database. Click on button below to register yourself.",
-            reply_markup=InlineKeyboardMarkup(
-                Buttons.start_markup(hellbot.app.username)
-            ),
+            buttons=Buttons.start_markup(hellbot.app.me.username)
         )
+    
+    sender = await event.get_sender()
+    mention = f"[{sender.first_name}](tg://user?id={sender.id})"
+    
     context = {
-        "id": message.from_user.id,
-        "mention": message.from_user.mention,
+        "id": event.sender_id,
+        "mention": mention,
         "songs_played": user.get("songs_played", 0),
         "messages_count": user.get("messages_count", 0),
         "join_date": user["join_date"],
-        "user_type": await get_user_type(message.chat.id, message.from_user.id),
+        "user_type": await get_user_type(event.chat_id, event.sender_id),
     }
-    await message.reply_text(
-        MusicUser.get_profile_text(context, hellbot.app.mention),
-        reply_markup=InlineKeyboardMarkup(Buttons.close_markup()),
+    
+    await event.reply(
+        MusicUser.get_profile_text(context, f"@{hellbot.app.me.username}"),
+        buttons=Buttons.close_markup(),
     )
 
 
-@hellbot.app.on_message(filters.command("stats") & Config.SUDO_USERS)
+@hellbot.app.on(events.NewMessage(pattern=r"^/stats"))
 @UserWrapper
-async def stats(_, message: Message):
-    hell = await message.reply_text("Just a sec... fetching stats")
+async def stats(event):
+    if event.sender_id not in Config.SUDO_USERS:
+        return
+    
+    hell = await event.reply("Just a sec... fetching stats")
     users = await db.total_users_count()
     chats = await db.total_chats_count()
     gbans = await db.total_gbans_count()
@@ -51,6 +59,7 @@ async def stats(_, message: Message):
     songs = await db.total_songs_count()
     actvc = await db.total_actvc_count()
     stats = await formatter.system_stats()
+    
     context = {
         1: users,
         2: chats,
@@ -63,73 +72,89 @@ async def stats(_, message: Message):
         9: stats["disk"],
         10: stats["ram"],
         11: stats["uptime"],
-        12: hellbot.app.mention,
+        12: f"@{hellbot.app.me.username}",
     }
-    await hell.edit_text(
+    
+    await hell.edit(
         MusicUser.get_stats_text(context),
-        reply_markup=InlineKeyboardMarkup(Buttons.close_markup()),
+        buttons=Buttons.close_markup(),
     )
 
 
-@hellbot.app.on_message(
-    filters.command(["leaderboard", "topusers"]) & filters.group & ~Config.BANNED_USERS
-)
+@hellbot.app.on(events.NewMessage(pattern=r"^/(leaderboard|topusers)"))
 @UserWrapper
-async def topusers(_, message: Message):
-    hell = await message.reply_text("Just a sec... fetching top users")
+async def topusers(event):
+    if not event.is_group:
+        return
+    if event.sender_id in Config.BANNED_USERS:
+        return
+    
+    hell = await event.reply("Just a sec... fetching top users")
     context = {
-        "mention": hellbot.app.mention,
-        "username": hellbot.app.username,
+        "mention": f"@{hellbot.app.me.username}",
+        "username": hellbot.app.me.username,
         "client": hellbot.app,
     }
+    
     # Show both leaderboards by default
     text = await leaders.generate(context, "both")
     btns = Buttons.close_markup()
-    await hell.edit_text(
+    
+    await hell.edit(
         text,
-        disable_web_page_preview=True,
-        reply_markup=InlineKeyboardMarkup(btns),
+        link_preview=False,
+        buttons=btns,
     )
 
 
-@hellbot.app.on_message(
-    filters.command(["topchatters", "activechatters"]) & filters.group & ~Config.BANNED_USERS
-)
+@hellbot.app.on(events.NewMessage(pattern=r"^/(topchatters|activechatters)"))
 @UserWrapper
-async def top_chatters(_, message: Message):
-    hell = await message.reply_text("Just a sec... fetching top chatters")
+async def top_chatters(event):
+    if not event.is_group:
+        return
+    if event.sender_id in Config.BANNED_USERS:
+        return
+    
+    hell = await event.reply("Just a sec... fetching top chatters")
     context = {
-        "mention": hellbot.app.mention,
-        "username": hellbot.app.username,
+        "mention": f"@{hellbot.app.me.username}",
+        "username": hellbot.app.me.username,
         "client": hellbot.app,
     }
+    
     # Show only message leaderboard
     text = await leaders.generate(context, "messages")
     btns = Buttons.close_markup()
-    await hell.edit_text(
+    
+    await hell.edit(
         text,
-        disable_web_page_preview=True,
-        reply_markup=InlineKeyboardMarkup(btns),
+        link_preview=False,
+        buttons=btns,
     )
 
 
-@hellbot.app.on_message(
-    filters.command(["topmusic", "topsongs"]) & filters.group & ~Config.BANNED_USERS
-)
+@hellbot.app.on(events.NewMessage(pattern=r"^/(topmusic|topsongs)"))
 @UserWrapper
-async def top_music(_, message: Message):
-    hell = await message.reply_text("Just a sec... fetching top music lovers")
+async def top_music(event):
+    if not event.is_group:
+        return
+    if event.sender_id in Config.BANNED_USERS:
+        return
+    
+    hell = await event.reply("Just a sec... fetching top music lovers")
     context = {
-        "mention": hellbot.app.mention,
-        "username": hellbot.app.username,
+        "mention": f"@{hellbot.app.me.username}",
+        "username": hellbot.app.me.username,
         "client": hellbot.app,
     }
+    
     # Show only songs leaderboard
     text = await leaders.generate(context, "songs")
     btns = Buttons.close_markup()
-    await hell.edit_text(
+    
+    await hell.edit(
         text,
-        disable_web_page_preview=True,
-        reply_markup=InlineKeyboardMarkup(btns),
+        link_preview=False,
+        buttons=btns,
     )
     
