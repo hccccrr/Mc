@@ -89,6 +89,19 @@ async def vc_end(event):
                 pass
 
 
+
+    @hellmusic.music.on_update()
+    async def on_update(self, update: Update):
+        """Handle PyTgCalls updates"""
+        if isinstance(update, ChatUpdate):
+            chat_id = update.chat_id
+            
+            # Handle stream ended
+            if isinstance(update, StreamEnded):
+                await self.change_vc(chat_id)
+                
+
+
 # PyTgCalls event handlers
 @hellmusic.music.on_update()
 async def handle_vc_updates(client, update: Update):
