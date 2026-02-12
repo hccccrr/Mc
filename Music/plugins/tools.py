@@ -1,7 +1,8 @@
 import os
+import asyncio
 import requests
-from pyrogram import filters
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
+from telethon import events, Button
+from telethon.errors import ChatAdminRequiredError
 
 from config import Config
 from Music.core.clients import hellbot
@@ -19,73 +20,55 @@ def upload_to_catbox(file_path):
         if response.status_code == 200:
             return True, response.text.strip()
         else:
-            return False, f"ᴇʀʀᴏʀ: {response.status_code} - {response.text}"
+            return False, f"ERROR: {response.status_code} - {response.text}"
     except Exception as e:
-        return False, f"ᴇʀʀᴏʀ: {str(e)}"
+        return False, f"ERROR: {str(e)}"
 
 
-@hellbot.app.on_message(filters.command(["tgm", "telegraph"]) & ~Config.BANNED_USERS)
+@hellbot.app.on(events.NewMessage(pattern=r"^/(tgm|telegraph)"))
 @UserWrapper
-async def telegraph_upload(_, message: Message):
+async def telegraph_upload(event):
     """Upload media to telegraph/catbox"""
-    if not message.reply_to_message:
-        return await message.reply_text(
-            "**Pʟᴇᴀsᴇ ʀᴇᴘʟʏ ᴛᴏ ᴀ ᴍᴇᴅɪᴀ ᴛᴏ ᴜᴘʟᴏᴀᴅ**"
-        )
+    if event.sender_id in Config.BANNED_USERS:
+        return
     
-    media = message.reply_to_message
+    if not event.is_reply:
+        return await event.reply("**Please reply to a media to upload**")
+    
+    media = await event.get_reply_message()
     file_size = 0
     
     if media.photo:
-        file_size = media.photo.file_size
+        file_size = media.photo.size if hasattr(media.photo, 'size') else 0
     elif media.video:
-        file_size = media.video.file_size
+        file_size = media.video.size if hasattr(media.video, 'size') else 0
     elif media.document:
-        file_size = media.document.file_size
+        file_size = media.document.size if hasattr(media.document, 'size') else 0
     else:
-        return await message.reply_text(
-            "**Pʟᴇᴀsᴇ ʀᴇᴘʟʏ ᴛᴏ ᴀ ᴠᴀʟɪᴅ ᴍᴇᴅɪᴀ ғɪʟᴇ**"
-        )
+        return await event.reply("**Please reply to a valid media file**")
     
     if file_size > 200 * 1024 * 1024:
-        return await message.reply_text(
-            "**Pʟᴇᴀsᴇ ᴘʀᴏᴠɪᴅᴇ ᴀ ᴍᴇᴅɪᴀ ғɪʟᴇ ᴜɴᴅᴇʀ 200MB.**"
-        )
+        return await event.reply("**Please provide a media file under 200MB.**")
     
-    text = await message.reply_text("**❍ ʜᴏʟᴅ ᴏɴ ʙᴀʙʏ....♡**")
-    
-    async def progress(current, total):
-        try:
-            await text.edit_text(
-                f"**📥 Dᴏᴡɴʟᴏᴀᴅɪɴɢ... {current * 100 / total:.1f}%**"
-            )
-        except Exception:
-            pass
+    text = await event.reply("**⏳ Hold on baby....♡**")
     
     try:
-        local_path = await media.download(progress=progress)
-        await text.edit_text("**📤 Uᴘʟᴏᴀᴅɪɴɢ ᴛᴏ ᴛᴇʟᴇɢʀᴀᴘʜ...**")
+        local_path = await media.download_media()
+        await text.edit("**📤 Uploading to telegraph...**")
         
         success, upload_path = upload_to_catbox(local_path)
         
         if success:
-            await text.edit_text(
-                f"**🌐 | [👉ʏᴏᴜʀ ʟɪɴᴋ ᴛᴀᴘ ʜᴇʀᴇ👈]({upload_path})**",
-                reply_markup=InlineKeyboardMarkup(
-                    [
-                        [
-                            InlineKeyboardButton(
-                                "✨ ᴛᴀᴘ ᴛᴏ ᴏᴘᴇɴ ʟɪɴᴋ ✨",
-                                url=upload_path,
-                            )
-                        ]
-                    ]
-                ),
-                disable_web_page_preview=True,
+            await text.edit(
+                f"**🌐 | [👉Your link tap here👈]({upload_path})**",
+                buttons=[
+                    [Button.url("✨ Tap to open link ✨", url=upload_path)]
+                ],
+                link_preview=False,
             )
         else:
-            await text.edit_text(
-                f"**ᴀɴ ᴇʀʀᴏʀ ᴏᴄᴄᴜʀʀᴇᴅ ᴡʜɪʟᴇ ᴜᴘʟᴏᴀᴅɪɴɢ ʏᴏᴜʀ ғɪʟᴇ**\n\n`{upload_path}`"
+            await text.edit(
+                f"**An error occurred while uploading your file**\n\n`{upload_path}`"
             )
         
         try:
@@ -94,8 +77,9 @@ async def telegraph_upload(_, message: Message):
             pass
     
     except Exception as e:
-        await text.edit_text(
-            f"**❌ Fɪʟᴇ ᴜᴘʟᴏᴀᴅ ғᴀɪʟᴇᴅ**\n\n<i>Rᴇᴀsᴏɴ: {e}</i>"
+        await text.edit(
+            f"**❌ File upload failed**\n\n<i>Reason: {e}</i>",
+            parse_mode='html'
         )
         try:
             os.remove(local_path)
@@ -103,55 +87,41 @@ async def telegraph_upload(_, message: Message):
             pass
 
 
-from pyrogram import filters
-from pyrogram.types import Message
-from pyrogram.errors import ChatAdminRequired
-
-from config import Config
-from Music.core.clients import hellbot
-from Music.core.decorators import UserWrapper
+AUTO_DELETE_TIME = 30  # seconds
 
 
-import asyncio
-from pyrogram import filters
-from pyrogram.types import Message
-from pyrogram.errors import ChatAdminRequired
-
-from config import Config
-from Music.core.clients import hellbot
-from Music.core.decorators import UserWrapper
-
-
-AUTO_DELETE_TIME = 30  # seconds (change if you want)
-
-
-@hellbot.app.on_message(filters.command("gclink"))
+@hellbot.app.on(events.NewMessage(pattern=r"^/gclink"))
 @UserWrapper
-async def get_gc_link(_, message: Message):
-    # 📌 Get chat id
-    if len(message.command) > 1:
+async def get_gc_link(event):
+    if event.sender_id in Config.BANNED_USERS:
+        return
+    
+    # Get chat id
+    parts = event.text.split()
+    if len(parts) > 1:
         try:
-            chat_id = int(message.command[1])
+            chat_id = int(parts[1])
         except ValueError:
-            return await message.reply_text("❌ **Invalid chat ID.**")
+            return await event.reply("❌ **Invalid chat ID.**")
     else:
-        chat_id = message.chat.id
+        chat_id = event.chat_id
 
     try:
         link = await hellbot.app.export_chat_invite_link(chat_id)
-        sent = await message.reply_text(
+        sent = await event.reply(
             f"**🔗 Group Invite Link:**\n\n{link}\n\n"
             f"_This message will auto-delete in {AUTO_DELETE_TIME} seconds._"
         )
 
-        # ⏳ Auto delete
+        # Auto delete
         await asyncio.sleep(AUTO_DELETE_TIME)
         await sent.delete()
-        await message.delete()
+        await event.delete()
 
-    except ChatAdminRequired:
-        await message.reply_text(
+    except ChatAdminRequiredError:
+        await event.reply(
             "❌ **Bot needs 'Invite Users via Link' permission in that group.**"
         )
     except Exception as e:
-        await message.reply_text(f"**ERROR:** `{e}`")
+        await event.reply(f"**ERROR:** `{e}`")
+        
