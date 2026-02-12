@@ -43,23 +43,27 @@ async def play_music(event, context: dict):
     
     hell = await event.reply("Processing ...")
     
-    # Get context from decorator
-    video = context["video"]
-    force = context["force"]
-    url = context["url"]
-    tgaud = context["tgaud"]
-    tgvid = context["tgvid"]
+    # Get context from decorator (updated keys)
+    video = context["is_video"]
+    force = context["is_force"]
+    url = context["is_url"]
+    tgaud = context["is_tgaudio"]
+    tgvid = context["is_tgvideo"]
     
     play_limit = formatter.mins_to_secs(f"{Config.PLAY_LIMIT}:00")
     
     # Handle Telegram audio
     if tgaud:
-        size_check = formatter.check_limit(tgaud.size, Config.TG_AUDIO_SIZE_LIMIT)
+        # Telethon uses 'size' attribute not 'file_size'
+        size = tgaud.size if hasattr(tgaud, 'size') else getattr(tgaud, 'file_size', 0)
+        duration = tgaud.duration if hasattr(tgaud, 'duration') else 0
+        
+        size_check = formatter.check_limit(size, Config.TG_AUDIO_SIZE_LIMIT)
         if not size_check:
             return await hell.edit(
                 f"Audio file size exceeds the size limit of {formatter.bytes_to_mb(Config.TG_AUDIO_SIZE_LIMIT)}MB."
             )
-        time_check = formatter.check_limit(tgaud.duration, play_limit)
+        time_check = formatter.check_limit(duration, play_limit)
         if not time_check:
             return await hell.edit(
                 f"Audio duration limit of {Config.PLAY_LIMIT} minutes exceeded."
@@ -73,7 +77,7 @@ async def play_music(event, context: dict):
         play_context = {
             "chat_id": event.chat_id,
             "user_id": event.sender_id,
-            "duration": formatter.secs_to_mins(tgaud.duration),
+            "duration": formatter.secs_to_mins(duration),
             "file": file_path,
             "title": "Telegram Audio",
             "user": mention,
@@ -86,12 +90,16 @@ async def play_music(event, context: dict):
     
     # Handle Telegram video
     if tgvid:
-        size_check = formatter.check_limit(tgvid.size, Config.TG_VIDEO_SIZE_LIMIT)
+        # Telethon uses 'size' attribute
+        size = tgvid.size if hasattr(tgvid, 'size') else getattr(tgvid, 'file_size', 0)
+        duration = tgvid.duration if hasattr(tgvid, 'duration') else 0
+        
+        size_check = formatter.check_limit(size, Config.TG_VIDEO_SIZE_LIMIT)
         if not size_check:
             return await hell.edit(
                 f"Video file size exceeds the size limit of {formatter.bytes_to_mb(Config.TG_VIDEO_SIZE_LIMIT)}MB."
             )
-        time_check = formatter.check_limit(tgvid.duration, play_limit)
+        time_check = formatter.check_limit(duration, play_limit)
         if not time_check:
             return await hell.edit(
                 f"Video duration limit of {Config.PLAY_LIMIT} minutes exceeded."
@@ -105,7 +113,7 @@ async def play_music(event, context: dict):
         play_context = {
             "chat_id": event.chat_id,
             "user_id": event.sender_id,
-            "duration": formatter.secs_to_mins(tgvid.duration),
+            "duration": formatter.secs_to_mins(duration),
             "file": file_path,
             "title": "Telegram Video",
             "user": mention,
