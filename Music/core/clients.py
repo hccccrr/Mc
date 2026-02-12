@@ -45,6 +45,7 @@ class HellClient:
             
             me = await self.app.get_me()
             self.app.id = me.id
+            self.app.me = me  # Store me object for plugins
             self.app.mention = f"[{me.first_name}](tg://user?id={me.id})"
             self.app.name = me.first_name
             self.app.username = me.username
@@ -58,6 +59,7 @@ class HellClient:
             
             me = await self.user.get_me()
             self.user.id = me.id
+            self.user.me = me  # Store me object for plugins
             self.user.mention = f"[{me.first_name}](tg://user?id={me.id})"
             self.user.name = me.first_name
             self.user.username = me.username
