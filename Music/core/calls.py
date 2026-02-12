@@ -214,16 +214,6 @@ class HellMusic(PyTgCalls):
             LOGS.error(f"Error applying effects: {e}")
             return False
 
-    @hellmusic.music.on_update()
-    async def on_update(self, update: Update):
-        """Handle PyTgCalls updates"""
-        if isinstance(update, ChatUpdate):
-            chat_id = update.chat_id
-            
-            # Handle stream ended
-            if isinstance(update, StreamEnded):
-                await self.change_vc(chat_id)
-
     async def change_vc(self, chat_id: int):
         """Change to next song in queue or leave VC if no songs"""
         try:
