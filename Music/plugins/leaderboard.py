@@ -1,5 +1,4 @@
-from pyrogram import filters
-from pyrogram.types import Message
+from telethon import events
 
 from config import Config
 from Music.core.clients import hellbot
@@ -7,23 +6,27 @@ from Music.core.database import db
 from Music.core.logger import LOGS
 
 
-@hellbot.app.on_message(filters.group, group=1)
-async def track_user_messages(_, message: Message):
-    """
-    Track all user messages in groups with anti-spam protection
-    """
-    # Skip if message is from bot or channel
-    if not message.from_user:
+@hellbot.app.on(events.NewMessage)
+async def track_user_messages(event):
+    """Track all user messages in groups with anti-spam protection"""
+    # Skip if not group
+    if not event.is_group:
+        return
+    
+    # Skip if message is from channel
+    if not event.sender_id:
         return
     
     # Skip if user is banned
-    if message.from_user.id in Config.BANNED_USERS:
+    if event.sender_id in Config.BANNED_USERS:
         return
     
-    user_id = message.from_user.id
-    user_name = message.from_user.first_name
+    user_id = event.sender_id
     
     try:
+        sender = await event.get_sender()
+        user_name = sender.first_name
+        
         # Track message with anti-spam check
         is_counted = await db.track_message(user_id, user_name)
         
@@ -34,35 +37,34 @@ async def track_user_messages(_, message: Message):
                 minutes = int(cooldown.total_seconds() // 60)
                 seconds = int(cooldown.total_seconds() % 60)
                 
-                # Only warn once when cooldown starts (when seconds > 19*60)
+                # Only warn once when cooldown starts
                 if cooldown.total_seconds() > 19 * 60:
                     try:
-                        await message.reply_text(
+                        await event.reply(
                             f"⚠️ **Anti-Spam Alert!**\n\n"
                             f"You sent too many messages too quickly.\n"
                             f"Your messages won't be counted for: **{minutes}m {seconds}s**\n\n"
-                            f"💡 Please slow down!",
-                            quote=True
+                            f"💡 Please slow down!"
                         )
                     except:
                         pass
     except Exception as e:
         LOGS.error(f"Error tracking message: {e}")
-    
-    # Continue propagation to other handlers
-    await message.continue_propagation()
 
 
-@hellbot.app.on_message(
-    filters.command(["msgcount", "messagecount"]) & filters.group & ~Config.BANNED_USERS
-)
-async def check_message_count(_, message: Message):
+@hellbot.app.on(events.NewMessage(pattern=r"^/(msgcount|messagecount)"))
+async def check_message_count(event):
     """Check user's message count"""
-    user_id = message.from_user.id
+    if not event.is_group:
+        return
+    if event.sender_id in Config.BANNED_USERS:
+        return
+    
+    user_id = event.sender_id
     user = await db.get_user(user_id)
     
     if not user:
-        return await message.reply_text(
+        return await event.reply(
             "❌ You are not registered in the database yet!\n"
             "Send some messages to get started."
         )
@@ -79,9 +81,12 @@ async def check_message_count(_, message: Message):
         seconds = int(cooldown.total_seconds() % 60)
         cooldown_text = f"\n\n⚠️ **Spam Cooldown:** {minutes}m {seconds}s remaining"
     
-    await message.reply_text(
+    sender = await event.get_sender()
+    mention = f"[{sender.first_name}](tg://user?id={sender.id})"
+    
+    await event.reply(
         f"📊 **Your Statistics**\n\n"
-        f"👤 **User:** {message.from_user.mention}\n"
+        f"👤 **User:** {mention}\n"
         f"💬 **Messages:** `{msg_count}`\n"
         f"🎵 **Songs Played:** `{songs_count}`\n"
         f"📅 **Joined:** `{join_date}`"
@@ -89,18 +94,21 @@ async def check_message_count(_, message: Message):
     )
 
 
-@hellbot.app.on_message(
-    filters.command(["resetspam", "clearspam"]) & Config.SUDO_USERS
-)
-async def reset_spam_cooldown(_, message: Message):
+@hellbot.app.on(events.NewMessage(pattern=r"^/(resetspam|clearspam)"))
+async def reset_spam_cooldown(event):
     """Reset spam cooldown for a user (Sudo only)"""
-    if not message.reply_to_message:
-        return await message.reply_text(
+    if event.sender_id not in Config.SUDO_USERS:
+        return
+    
+    if not event.is_reply:
+        return await event.reply(
             "❌ Reply to a user's message to reset their spam cooldown!"
         )
     
-    user_id = message.reply_to_message.from_user.id
-    user_name = message.reply_to_message.from_user.first_name
+    replied = await event.get_reply_message()
+    user_id = replied.sender_id
+    sender = await replied.get_sender()
+    user_name = sender.first_name
     
     # Reset cooldown
     await db.users.update_one(
@@ -111,7 +119,7 @@ async def reset_spam_cooldown(_, message: Message):
         }}
     )
     
-    await message.reply_text(
-        f"✅ Spam cooldown reset for {message.reply_to_message.from_user.mention}!"
-  )
-  
+    mention = f"[{user_name}](tg://user?id={user_id})"
+    await event.reply(
+        f"✅ Spam cooldown reset for {mention}!"
+    )
