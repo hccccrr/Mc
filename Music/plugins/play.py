@@ -17,10 +17,11 @@ from Music.utils.thumbnail import thumb
 from Music.utils.youtube import ytube
 
 
-@hellbot.app.on(events.NewMessage(pattern=r"^/(play|vplay|fplay|fvplay)"))
+@hellbot.app.on(events.NewMessage(pattern=r"^/(play|vplay|fplay|fvplay)(?:\s|$)"))
 @check_mode
 @PlayWrapper
 async def play_music(event, context: dict):
+    """Handle play commands"""
     # Check group and banned
     if not event.is_group:
         return
@@ -31,6 +32,7 @@ async def play_music(event, context: dict):
     user_name = sender.first_name
     user_id = event.sender_id
     
+    # Add/update user in database
     if not await db.is_user_exist(user_id):
         await db.add_user(user_id, user_name)
     else:
@@ -42,12 +44,17 @@ async def play_music(event, context: dict):
     hell = await event.reply("Processing ...")
     
     # Get context from decorator
-    video, force, url, tgaud, tgvid = context.values()
+    video = context["video"]
+    force = context["force"]
+    url = context["url"]
+    tgaud = context["tgaud"]
+    tgvid = context["tgvid"]
+    
     play_limit = formatter.mins_to_secs(f"{Config.PLAY_LIMIT}:00")
     
     # Handle Telegram audio
     if tgaud:
-        size_check = formatter.check_limit(tgaud.file_size, Config.TG_AUDIO_SIZE_LIMIT)
+        size_check = formatter.check_limit(tgaud.size, Config.TG_AUDIO_SIZE_LIMIT)
         if not size_check:
             return await hell.edit(
                 f"Audio file size exceeds the size limit of {formatter.bytes_to_mb(Config.TG_AUDIO_SIZE_LIMIT)}MB."
@@ -63,7 +70,7 @@ async def play_music(event, context: dict):
         file_path = await hellbot.app.download_media(replied)
         
         mention = f"[{sender.first_name}](tg://user?id={sender.id})"
-        context = {
+        play_context = {
             "chat_id": event.chat_id,
             "user_id": event.sender_id,
             "duration": formatter.secs_to_mins(tgaud.duration),
@@ -74,12 +81,12 @@ async def play_music(event, context: dict):
             "vc_type": "voice",
             "force": force,
         }
-        await player.play(hell, context)
+        await player.play(hell, play_context)
         return
     
     # Handle Telegram video
     if tgvid:
-        size_check = formatter.check_limit(tgvid.file_size, Config.TG_VIDEO_SIZE_LIMIT)
+        size_check = formatter.check_limit(tgvid.size, Config.TG_VIDEO_SIZE_LIMIT)
         if not size_check:
             return await hell.edit(
                 f"Video file size exceeds the size limit of {formatter.bytes_to_mb(Config.TG_VIDEO_SIZE_LIMIT)}MB."
@@ -87,7 +94,7 @@ async def play_music(event, context: dict):
         time_check = formatter.check_limit(tgvid.duration, play_limit)
         if not time_check:
             return await hell.edit(
-                f"Audio duration limit of {Config.PLAY_LIMIT} minutes exceeded."
+                f"Video duration limit of {Config.PLAY_LIMIT} minutes exceeded."
             )
         
         await hell.edit("Downloading ...")
@@ -95,7 +102,7 @@ async def play_music(event, context: dict):
         file_path = await hellbot.app.download_media(replied)
         
         mention = f"[{sender.first_name}](tg://user?id={sender.id})"
-        context = {
+        play_context = {
             "chat_id": event.chat_id,
             "user_id": event.sender_id,
             "duration": formatter.secs_to_mins(tgvid.duration),
@@ -106,7 +113,7 @@ async def play_music(event, context: dict):
             "vc_type": "video",
             "force": force,
         }
-        await player.play(hell, context)
+        await player.play(hell, play_context)
         return
     
     # Handle YouTube URL
@@ -123,11 +130,11 @@ async def play_music(event, context: dict):
                 random.shuffle(song_list)
                 
                 mention = f"[{sender.first_name}](tg://user?id={sender.id})"
-                context = {
+                play_context = {
                     "user_id": event.sender_id,
                     "user_mention": mention,
                 }
-                await player.playlist(hell, context, song_list, video)
+                await player.playlist(hell, play_context, song_list, video)
             except Exception as e:
                 return await hell.edit(f"**Error fetching playlist:**\n`{e}`")
             return
@@ -141,7 +148,7 @@ async def play_music(event, context: dict):
             return await hell.edit(f"**Error:**\n`{e}`")
         
         mention = f"[{sender.first_name}](tg://user?id={sender.id})"
-        context = {
+        play_context = {
             "chat_id": event.chat_id,
             "user_id": event.sender_id,
             "duration": result[0]["duration"],
@@ -152,7 +159,7 @@ async def play_music(event, context: dict):
             "vc_type": "video" if video else "voice",
             "force": force,
         }
-        await player.play(hell, context)
+        await player.play(hell, play_context)
         return
     
     # Handle search query
@@ -171,7 +178,7 @@ async def play_music(event, context: dict):
         return await hell.edit(f"**Error:**\n`{e}`")
     
     mention = f"[{sender.first_name}](tg://user?id={sender.id})"
-    context = {
+    play_context = {
         "chat_id": event.chat_id,
         "user_id": event.sender_id,
         "duration": result[0]["duration"],
@@ -182,12 +189,13 @@ async def play_music(event, context: dict):
         "vc_type": "video" if video else "voice",
         "force": force,
     }
-    await player.play(hell, context)
+    await player.play(hell, play_context)
 
 
-@hellbot.app.on(events.NewMessage(pattern=r"^/(current|playing)"))
+@hellbot.app.on(events.NewMessage(pattern=r"^/(current|playing)(?:\s|$)"))
 @UserWrapper
 async def playing(event):
+    """Show currently playing track"""
     if not event.is_group:
         return
     if event.sender_id in Config.BANNED_USERS:
@@ -228,6 +236,7 @@ async def playing(event):
 @hellbot.app.on(events.NewMessage(pattern=r"^/(queue|que|q)$"))
 @UserWrapper
 async def queued_tracks(event):
+    """Show queue"""
     if not event.is_group:
         return
     if event.sender_id in Config.BANNED_USERS:
@@ -247,9 +256,10 @@ async def queued_tracks(event):
     await MakePages.queue_page(hell, collection, 0, 0, True)
 
 
-@hellbot.app.on(events.NewMessage(pattern=r"^/(clean|reload)"))
+@hellbot.app.on(events.NewMessage(pattern=r"^/(clean|reload)(?:\s|$)"))
 @AuthWrapper
 async def clean_queue(event):
+    """Clear queue"""
     if event.sender_id in Config.BANNED_USERS:
         return
     
@@ -261,6 +271,7 @@ async def clean_queue(event):
 
 @hellbot.app.on(events.CallbackQuery(pattern=b"queue"))
 async def queued_tracks_cb(event):
+    """Handle queue pagination callbacks"""
     if event.sender_id in Config.BANNED_USERS:
         return
     
@@ -281,4 +292,3 @@ async def queued_tracks_cb(event):
     
     index = new_page * 5
     await MakePages.queue_page(event, collection, new_page, index, True)
-        
