@@ -21,9 +21,6 @@ class HellClient:
             api_hash=Config.API_HASH,
         ).start(bot_token=Config.BOT_TOKEN)
         
-        # Load plugins
-        self._load_plugins("Music/plugins")
-        
         # User client with session string
         if Config.STRING_SESSION:
             self.user = TelegramClient(
@@ -33,6 +30,8 @@ class HellClient:
             )
         else:
             self.user = None
+        
+        self._plugins_loaded = False
 
     async def start(self):
         """Start both bot and user clients"""
@@ -71,6 +70,11 @@ class HellClient:
                 LOGS.warning(f"Failed to join channels: {e}")
             
             LOGS.info(f">> {self.user.name} is online now!")
+        
+        # Load plugins after clients are initialized (to avoid circular imports)
+        if not self._plugins_loaded:
+            self._load_plugins("Music/plugins")
+            self._plugins_loaded = True
         
         LOGS.info(">> Booted up HellMusic!")
 
