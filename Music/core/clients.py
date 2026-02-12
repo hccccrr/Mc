@@ -105,7 +105,8 @@ class HellClient:
 
     def _load_plugins(self, plugin_path: str):
         """Load all plugins from the specified directory"""
-        plugin_dir = Path(plugin_path)
+        # Convert to absolute path
+        plugin_dir = Path(plugin_path).resolve()
         
         if not plugin_dir.exists():
             LOGS.warning(f"Plugin directory not found: {plugin_path}")
@@ -117,7 +118,13 @@ class HellClient:
                 continue
             
             # Convert path to module format
-            module_path = str(path.relative_to(Path.cwd())).replace("/", ".").replace("\\", ".")[:-3]
+            try:
+                # Get relative path from current working directory
+                rel_path = path.resolve().relative_to(Path.cwd().resolve())
+                module_path = str(rel_path).replace("/", ".").replace("\\", ".")[:-3]
+            except ValueError:
+                # If relative_to fails, construct module path differently
+                module_path = plugin_path.replace("/", ".").replace("\\", ".") + "." + path.stem
             
             try:
                 importlib.import_module(module_path)
