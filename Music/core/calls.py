@@ -9,10 +9,9 @@ from telethon.errors import (
     UserAlreadyParticipantError,
     UserNotParticipantError,
 )
-from telethon.tl.types import (
-    InputMessagesFilterPhotos,
-    KeyboardButtonRow,
-)
+from telethon.tl.functions.channels import JoinChannelRequest
+from telethon.tl.functions.messages import ExportChatInviteRequest, ImportChatInviteRequest
+from telethon.tl.functions.messages import GetFullChatRequest
 from pytgcalls import PyTgCalls
 from pytgcalls.exceptions import NoActiveGroupCall
 from pytgcalls.types import (
@@ -26,6 +25,7 @@ from pytgcalls.types import (
 
 from config import Config
 from Music.helpers.buttons import Buttons
+from Music.helpers.formatters import formatter
 from Music.helpers.strings import TEXTS
 from Music.utils.exceptions import (
     ChangeVCException,
@@ -36,7 +36,6 @@ from Music.utils.exceptions import (
 from Music.utils.queue import Queue
 from Music.utils.thumbnail import thumb
 from Music.utils.youtube import ytube
-from Music.utils import formatter
 
 from .clients import hellbot
 from .database import db
@@ -69,7 +68,6 @@ class HellMusic(PyTgCalls):
                 db.inactive[chat_id] = {}
 
     async def autoclean(self, file: str):
-        # dirty way. but works :)
         try:
             os.remove(file)
             os.remove(f"downloads/{file}.webm")
@@ -87,12 +85,10 @@ class HellMusic(PyTgCalls):
             quit(1)
 
     async def ping(self):
-        # In PyTgCalls 2.2.8, ping is a property not a method
         pinged = self.music.ping
         return pinged
 
     async def vc_participants(self, chat_id: int):
-        # In PyTgCalls 2.2.8, we need to get active call first
         try:
             call = await self.music.get_call(chat_id)
             if call:
@@ -126,116 +122,174 @@ class HellMusic(PyTgCalls):
             except:
                 pass
 
-    def get_ffmpeg_parameters(self, bass_boost: int = 0, speed: float = 1.0, seek: str = None, duration: str = None):
+    def get_ffmpeg_parameters(self, bass_boost: int = 0, speed: float = 1.0, seek: str = None):
         """
         Generate FFmpeg parameters for audio effects
         bass_boost: 0-10 (0 = no boost, 10 = maximum boost)
         speed: 0.5-2.0 (0.5 = half speed, 2.0 = double speed)
+        seek: timestamp in format "00:00:00"
         """
         filters = []
         
-        # Bass boost filter
+        # Bass boost filter - using bass and treble adjustment
         if bass_boost > 0:
-            # Bass boost using equalizer
-            bass_value = bass_boost * 2  # Scale 0-10 to 0-20 dB
-            filters.append(f"equalizer=f=100:width_type=h:width=200:g={bass_value}")
+            # Scale bass_boost (0-10) to gain values
+            # Low frequencies (60-250 Hz) boost
+            gain = bass_boost * 3  # 0-30 dB range
+            filters.append(f"bass=g={gain}:f=110:w=0.3")
         
-        # Speed filter
+        # Speed/tempo filter
         if speed != 1.0:
-            # atempo filter (range: 0.5 to 2.0)
             if 0.5 <= speed <= 2.0:
                 filters.append(f"atempo={speed}")
+            elif speed < 0.5:
+                # For very slow speeds, chain atempo filters
+                filters.append("atempo=0.5,atempo=" + str(speed/0.5))
+            elif speed > 2.0:
+                # For very fast speeds, chain atempo filters  
+                filters.append("atempo=2.0,atempo=" + str(speed/2.0))
         
-        # Combine all filters
-        filter_string = ",".join(filters) if filters else None
-        
-        # Build ffmpeg parameters
+        # Build parameters
         params = []
-        if seek:
-            params.append(f"-ss {seek}")
-        if duration:
-            params.append(f"-to {duration}")
-        if filter_string:
-            params.append(f"-af {filter_string}")
         
-        return " ".join(params) if params else None
+        # Add seek if provided
+        if seek:
+            params.extend(["-ss", seek])
+        
+        # Add audio filters if any
+        if filters:
+            filter_string = ",".join(filters)
+            params.extend(["-af", filter_string])
+        
+        return params if params else None
 
     async def apply_effects(self, chat_id: int, bass_boost: int = 0, speed: float = 1.0):
         """Apply bass boost and speed effects to current stream"""
-        que = Queue.get_queue(chat_id)
-        if not que or que == []:
-            return False
-        
-        current = que[0]
-        video = True if current["vc_type"] == "video" else False
-        
-        # Get file path
-        if current["video_id"] == "telegram":
-            file_path = current["file"]
-        else:
-            try:
-                file_path = await ytube.download(current["video_id"], True, video)
-            except Exception as e:
-                LOGS.error(f"Error downloading for effects: {e}")
+        try:
+            que = Queue.get_queue(chat_id)
+            if not que or que == []:
                 return False
+            
+            current = que[0]
+            video = True if current["vc_type"] == "video" else False
+            
+            # Get file path
+            if current["video_id"] == "telegram":
+                file_path = current["file"]
+            else:
+                try:
+                    file_path = await ytube.download(current["video_id"], True, video)
+                except Exception as e:
+                    LOGS.error(f"Error downloading for effects: {e}")
+                    return False
+            
+            # Get current playback position
+            played = int(current.get("played", 0))
+            seek_time = formatter.secs_to_mins(played) if played > 0 else None
+            
+            # Get FFmpeg parameters with effects
+            ffmpeg_params = self.get_ffmpeg_parameters(bass_boost, speed, seek_time)
+            
+            # Create MediaStream with effects
+            if video:
+                stream = MediaStream(
+                    file_path,
+                    audio_parameters=AudioQuality.MEDIUM,
+                    video_parameters=VideoQuality.SD_480p,
+                    ffmpeg_parameters=" ".join(ffmpeg_params) if ffmpeg_params else None,
+                )
+            else:
+                stream = MediaStream(
+                    file_path,
+                    audio_parameters=AudioQuality.MEDIUM,
+                    ffmpeg_parameters=" ".join(ffmpeg_params) if ffmpeg_params else None,
+                )
+            
+            # Apply the stream with effects
+            await self.music.play(chat_id, stream)
+            
+            # Store current effects in database
+            await db.set_audio_effects(chat_id, bass_boost, speed)
+            
+            return True
+            
+        except Exception as e:
+            LOGS.error(f"Error applying effects: {e}")
+            return False
+
+    async def seek_vc(self, context: dict):
+        """Seek to specific position in current track"""
+        chat_id = context["chat_id"]
+        file_path = context["file"]
+        seek_time = context["seek"]
+        video = context["video"]
         
-        # Get current playback position to maintain continuity
-        played = int(current.get("played", 0))
-        duration = current.get("duration", "0:00")
+        # Get current effects
+        effects = await db.get_audio_effects(chat_id)
+        bass = effects.get("bass_boost", 0) if effects else 0
+        speed_val = effects.get("speed", 1.0) if effects else 1.0
         
-        # Get FFmpeg parameters with effects and seek to current position
-        if played > 0:
-            seek_time = formatter.secs_to_mins(played)
-            ffmpeg_params = self.get_ffmpeg_parameters(bass_boost, speed, seek_time, duration)
-        else:
-            ffmpeg_params = self.get_ffmpeg_parameters(bass_boost, speed)
+        # Get FFmpeg parameters with seek and effects
+        ffmpeg_params = self.get_ffmpeg_parameters(bass, speed_val, seek_time)
         
-        # Create MediaStream with effects
+        # Create stream with seek position
         if video:
             stream = MediaStream(
                 file_path,
                 audio_parameters=AudioQuality.MEDIUM,
                 video_parameters=VideoQuality.SD_480p,
-                ffmpeg_parameters=ffmpeg_params,
+                ffmpeg_parameters=" ".join(ffmpeg_params) if ffmpeg_params else None,
             )
         else:
             stream = MediaStream(
                 file_path,
                 audio_parameters=AudioQuality.MEDIUM,
-                ffmpeg_parameters=ffmpeg_params,
+                ffmpeg_parameters=" ".join(ffmpeg_params) if ffmpeg_params else None,
             )
         
-        try:
-            await self.music.play(chat_id, stream)
-            # Store current effects in database
-            await db.set_audio_effects(chat_id, bass_boost, speed)
-            return True
-        except Exception as e:
-            LOGS.error(f"Error applying effects: {e}")
-            return False
+        await self.music.play(chat_id, stream)
+
+    async def replay_vc(self, chat_id: int, file_path: str, video: bool):
+        """Replay current track from beginning"""
+        # Get current effects
+        effects = await db.get_audio_effects(chat_id)
+        bass = effects.get("bass_boost", 0) if effects else 0
+        speed_val = effects.get("speed", 1.0) if effects else 1.0
+        
+        # Get FFmpeg parameters with effects
+        ffmpeg_params = self.get_ffmpeg_parameters(bass, speed_val)
+        
+        # Create stream
+        if video:
+            stream = MediaStream(
+                file_path,
+                audio_parameters=AudioQuality.MEDIUM,
+                video_parameters=VideoQuality.SD_480p,
+                ffmpeg_parameters=" ".join(ffmpeg_params) if ffmpeg_params else None,
+            )
+        else:
+            stream = MediaStream(
+                file_path,
+                audio_parameters=AudioQuality.MEDIUM,
+                ffmpeg_parameters=" ".join(ffmpeg_params) if ffmpeg_params else None,
+            )
+        
+        await self.music.play(chat_id, stream)
 
     async def change_vc(self, chat_id: int):
-        """Change to next song in queue or leave VC if no songs"""
-        try:
-            # Process queue - remove played song or decrease loop count
-            que = Queue.get_queue(chat_id)
-            if not que or que == []:
-                LOGS.info(f"Queue is empty for chat {chat_id}, leaving VC")
-                return await self.leave_vc(chat_id)
-            
-            loop = await db.get_loop(chat_id)
-            if loop == 0:
-                file = Queue.rm_queue(chat_id, 0)
-                await self.autoclean(file)
-            else:
-                await db.set_loop(chat_id, loop - 1)
-        except Exception as e:
-            LOGS.error(f"Error in change_vc processing queue: {e}")
-            return await self.leave_vc(chat_id)
+        """Change to next song in queue"""
+        is_loop = await db.get_loop(chat_id)
         
-        # Check queue again after processing
+        if is_loop != 0:
+            # Decrement loop counter
+            await db.set_loop(chat_id, is_loop - 1)
+        else:
+            # Remove current song from queue
+            Queue.rm_queue(chat_id, 0)
+        
         get = Queue.get_queue(chat_id)
-        if get == []:
+        
+        if not get or get == []:
             LOGS.info(f"No more songs in queue for chat {chat_id}, leaving VC")
             return await self.leave_vc(chat_id)
         
@@ -265,14 +319,11 @@ class HellMusic(PyTgCalls):
                     )
                 except Exception as e:
                     LOGS.error(f"Error downloading next song: {e}")
-                    # Try next song in queue
                     Queue.rm_queue(chat_id, 0)
                     return await self.change_vc(chat_id)
             
-            # Don't apply effects automatically on song change
-            # User can reapply effects if they want them
-            
-            # Create MediaStream for PyTgCalls 2.2.8 (no effects initially)
+            # Create MediaStream WITHOUT effects initially
+            # Effects will be reapplied when user requests
             if vc_type == "video":
                 stream = MediaStream(
                     to_stream,
@@ -287,7 +338,6 @@ class HellMusic(PyTgCalls):
             
             try:
                 photo = thumb.generate((359), (297, 302), video_id)
-                # In PyTgCalls 2.2.8+, use play() to change stream
                 await self.music.play(int(chat_id), stream)
                 
                 btns = Buttons.player_markup(
@@ -297,18 +347,19 @@ class HellMusic(PyTgCalls):
                 )
                 
                 if photo:
-                    sent = await hellbot.app.send_file(
+                    sent = await hellbot.app.send_message(
                         int(chat_id),
-                        photo,
-                        caption=TEXTS.PLAYING.format(
+                        TEXTS.PLAYING.format(
                             f"@{hellbot.app.me.username}",
                             title,
                             duration,
                             user_mention,
                         ),
+                        file=photo,
                         buttons=btns,
                     )
-                    os.remove(photo)
+                    if os.path.exists(photo):
+                        os.remove(photo)
                 else:
                     sent = await hellbot.app.send_message(
                         int(chat_id),
@@ -330,6 +381,10 @@ class HellMusic(PyTgCalls):
                         pass
                 
                 Config.PLAYER_CACHE[chat_id] = sent
+                
+                # Reset effects to default on song change
+                await db.set_audio_effects(chat_id, 0, 1.0)
+                
                 await db.update_songs_count(1)
                 await db.update_user(user_id, "songs_played", 1)
                 chat = await hellbot.app.get_entity(chat_id)
@@ -343,10 +398,8 @@ class HellMusic(PyTgCalls):
                 raise ChangeVCException(f"[ChangeVCException]: {e}")
 
     async def join_vc(self, chat_id: int, file_path: str, video: bool = False):
-        # Don't apply effects on initial join - let stream start normally
-        # User can apply effects after song starts playing
-        
-        # Create MediaStream for PyTgCalls 2.2.8 (no effects initially)
+        """Join voice chat and start streaming"""
+        # Create MediaStream without effects initially
         if video:
             stream = MediaStream(
                 file_path,
@@ -359,7 +412,7 @@ class HellMusic(PyTgCalls):
                 audio_parameters=AudioQuality.MEDIUM,
             )
 
-        # Join VC using PyTgCalls 2.2.8 method
+        # Join VC
         try:
             await self.music.play(chat_id, stream)
         except NoActiveGroupCall:
@@ -392,16 +445,15 @@ class HellMusic(PyTgCalls):
         await db.set_audio_effects(chat_id, 0, 1.0)
 
     async def join_gc(self, chat_id: int):
+        """Join group chat if not already joined"""
         try:
             try:
-                # Get participant info using Telethon
                 participant = await hellbot.app.get_permissions(chat_id, hellbot.user.id)
             except ChatAdminRequiredError:
                 raise UserException(
                     f"[UserException]: Bot is not admin in chat {chat_id}"
                 )
             
-            # Check if user is restricted or banned
             if participant.is_banned:
                 raise UserException(
                     f"[UserException]: Assistant is restricted or banned in chat {chat_id}"
@@ -409,7 +461,6 @@ class HellMusic(PyTgCalls):
         except UserNotParticipantError:
             chat = await hellbot.app.get_entity(chat_id)
             
-            # Check if chat has username (public group/channel)
             if hasattr(chat, 'username') and chat.username:
                 try:
                     await hellbot.user(JoinChannelRequest(chat.username))
@@ -418,15 +469,12 @@ class HellMusic(PyTgCalls):
                 except Exception as e:
                     raise UserException(f"[UserException]: {e}")
             else:
-                # Private group - need invite link
                 try:
                     try:
-                        # Get full chat info to access invite link
                         full_chat = await hellbot.app(GetFullChatRequest(chat_id))
                         link = full_chat.full_chat.exported_invite.link if full_chat.full_chat.exported_invite else None
                         
                         if link is None:
-                            # Export new invite link
                             link = await hellbot.app(ExportChatInviteRequest(chat_id))
                             link = link.link
                     except ChatAdminRequiredError:
@@ -440,7 +488,6 @@ class HellMusic(PyTgCalls):
                         chat_id, "Inviting assistant to chat..."
                     )
                     
-                    # Join using invite link
                     if link.startswith("https://t.me/+"):
                         link = link.replace("https://t.me/+", "https://t.me/joinchat/")
                     
