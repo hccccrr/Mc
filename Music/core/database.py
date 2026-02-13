@@ -30,7 +30,6 @@ class Database(object):
         self.inactive = {}
         self.loop = {}
         self.watcher = {}
-        self.audio_effects = {}  # Store bass boost and speed settings
 
     # database connection #
     async def connect(self):
@@ -268,19 +267,6 @@ class Database(object):
             watch = False
         return watch
 
-    # audio effects db #
-    async def set_audio_effects(self, chat_id: int, bass_boost: int, speed: float):
-        """Store audio effects settings for a chat"""
-        self.audio_effects[chat_id] = {"bass_boost": bass_boost, "speed": speed}
-
-    async def get_audio_effects(self, chat_id: int) -> dict:
-        """Get audio effects settings for a chat"""
-        return self.audio_effects.get(chat_id, {"bass_boost": 0, "speed": 1.0})
-
-    async def reset_audio_effects(self, chat_id: int):
-        """Reset audio effects to default"""
-        self.audio_effects[chat_id] = {"bass_boost": 0, "speed": 1.0}
-
     # sudousers db #
     async def get_sudo_users(self) -> list:
         users = await self.sudousers.find_one({"sudo": "sudo"})
@@ -464,26 +450,6 @@ class Database(object):
             {"songs": "songs"}, {"$set": {"count": songs}}, upsert=True
         )
 
-    # Audio Effects #
-    async def get_audio_effects(self, chat_id: int) -> dict:
-        """
-        Get audio effects settings for a chat
-        Returns dict with 'bass_boost' and 'speed' keys
-        """
-        if chat_id in self.audio_effects:
-            return self.audio_effects[chat_id]
-        return {"bass_boost": 0, "speed": 1.0}
-
-    async def set_audio_effects(self, chat_id: int, bass_boost: int, speed: float):
-        """
-        Set audio effects for a chat
-        bass_boost: 0-10
-        speed: 0.5-2.0
-        """
-        self.audio_effects[chat_id] = {
-            "bass_boost": bass_boost,
-            "speed": speed
-        }
-
 
 db = Database()
+        
