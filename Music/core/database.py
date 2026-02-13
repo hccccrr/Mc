@@ -464,5 +464,26 @@ class Database(object):
             {"songs": "songs"}, {"$set": {"count": songs}}, upsert=True
         )
 
+    # Audio Effects #
+    async def get_audio_effects(self, chat_id: int) -> dict:
+        """
+        Get audio effects settings for a chat
+        Returns dict with 'bass_boost' and 'speed' keys
+        """
+        if chat_id in self.audio_effects:
+            return self.audio_effects[chat_id]
+        return {"bass_boost": 0, "speed": 1.0}
+
+    async def set_audio_effects(self, chat_id: int, bass_boost: int, speed: float):
+        """
+        Set audio effects for a chat
+        bass_boost: 0-10
+        speed: 0.5-2.0
+        """
+        self.audio_effects[chat_id] = {
+            "bass_boost": bass_boost,
+            "speed": speed
+        }
+
 
 db = Database()
