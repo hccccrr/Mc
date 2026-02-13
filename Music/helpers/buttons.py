@@ -173,10 +173,6 @@ class MakeButtons:
                 Button.inline(text="⊹ Skip", data=f"ctrl|skip|{chat_id}"),
             ],
             [
-                Button.inline(text="🎸 Bass", data=f"ctrl|bass|{chat_id}"),
-                Button.inline(text="⚡ Speed", data=f"ctrl|speed|{chat_id}"),
-            ],
-            [
                 Button.inline(text="🔙", data=f"player|{video_id}|{chat_id}"),
                 Button.inline(text="🗑", data="close"),
             ],
